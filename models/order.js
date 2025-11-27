@@ -94,4 +94,5 @@ orderSchema.methods.addTimelineEvent = function(status, description) {
   });
 };
 
-module.exports = mongoose.model('Order', orderSchema);
+
+module.exports = mongoose.model('order', orderSchema);
