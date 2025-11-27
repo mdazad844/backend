@@ -1,0 +1,33 @@
+{
+  "name": "mybrand-backend",
+  "version": "1.0.0",
+  "description": "Complete e-commerce backend for MyBrand",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js",
+    "dev": "nodemon app.js",
+    "test": "echo \"No tests yet\" && exit 0"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "razorpay": "^2.8.6",
+    "mongoose": "^7.4.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "nodemailer": "^6.9.4",
+    "bcryptjs": "^2.4.3",
+    "jsonwebtoken": "^9.0.2"
+    "exceljs": "^4.4.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  },
+  "keywords": [
+    "ecommerce",
+    "razorpay",
+    "mongodb",
+    "nodejs"
+  ],
+  "author": "MyBrand",
+  "license": "MIT"
+}
