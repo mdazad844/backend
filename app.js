@@ -20,6 +20,16 @@ mongoose.connection.on('connected', () => {
   console.log('✅ Connected to MongoDB');
 });
 
+// ✅ CRITICAL: Add root route for Railway health check
+app.get('/', (req, res) => {
+  res.status(200).json({
+    status: 'OK',
+    message: 'MyBrand Backend API is running',
+    timestamp: new Date().toISOString(),
+    database: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected'
+  });
+});
+
 // Routes
 app.use('/api/payments', require('./routes/payments'));
 app.use('/api/orders', require('./routes/orders'));
@@ -49,14 +59,17 @@ app.use((error, req, res, next) => {
   });
 });
 
+// ✅ CRITICAL: Bind to 0.0.0.0 for Railway
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`
 🚀 MyBrand Backend Server Started!
 📍 Port: ${PORT}
-📊 Health: http://localhost:${PORT}/api/health
-💳 Payments: http://localhost:${PORT}/api/payments
-📦 Orders: http://localhost:${PORT}/api/orders
+📍 Host: 0.0.0.0
+🌐 Health: http://0.0.0.0:${PORT}/
+📊 API Health: http://0.0.0.0:${PORT}/api/health
+💳 Payments: http://0.0.0.0:${PORT}/api/payments
+📦 Orders: http://0.0.0.0:${PORT}/api/orders
   `);
 });
 
