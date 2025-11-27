@@ -47,6 +47,7 @@ try {
   app.use('/api/orders', require('./routes/orders'));
   app.use('/api/analytics', require('./routes/analytics'));
   app.use('/api/webhooks', require('./routes/webhooks'));
+app.use('/api/shipping', require('./routes/shipping'));
   console.log('✅ All routes loaded successfully');
 } catch (error) {
   console.error('❌ Route loading error:', error);
@@ -92,3 +93,4 @@ if (process.env.NODE_ENV !== 'test') {
 }
 
 module.exports = app; // For testing
+
