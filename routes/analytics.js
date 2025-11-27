@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const Order = require('../models/Order');
+const Order = require('../models/order');
 
 // ✅ SALES ANALYTICS
 router.get('/sales', async (req, res) => {
@@ -146,5 +146,6 @@ function getDateRange(period) {
   
   return { start, end };
 }
+
 
 module.exports = router;
