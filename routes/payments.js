@@ -1,8 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const Razorpay = require('razorpay');
-const Order = require('../models/Order');
-const Payment = require('../models/Payment'); // ← NOW USING PAYMENT MODEL
+const Order = require('../models/order');
+const Payment = require('../models/payment'); // ← NOW USING PAYMENT MODEL
 
 const razorpay = new Razorpay({
   key_id: process.env.RAZORPAY_KEY_ID,
@@ -154,5 +154,6 @@ router.get('/customer/:email', async (req, res) => {
     });
   }
 });
+
 
 module.exports = router;
