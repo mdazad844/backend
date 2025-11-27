@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const Order = require('../models/Order');
+const Order = require('../models/order');
 
 // ✅ GET ALL ORDERS (with filtering and pagination)
 router.get('/', async (req, res) => {
@@ -161,5 +161,6 @@ router.post('/:orderId/cancel', async (req, res) => {
     });
   }
 });
+
 
 module.exports = router;
