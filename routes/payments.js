@@ -155,5 +155,43 @@ router.get('/customer/:email', async (req, res) => {
   }
 });
 
+// Add this to your payments.js file before module.exports
+router.post('/create-order', async (req, res) => {
+  try {
+    const { amount, currency = 'INR', receipt } = req.body;
 
+    if (!amount) {
+      return res.status(400).json({
+        success: false,
+        error: 'Amount is required'
+      });
+    }
+
+    const options = {
+      amount: amount * 100, // Razorpay expects paise
+      currency: currency,
+      receipt: receipt || `receipt_${Date.now()}`
+    };
+
+    const order = await razorpay.orders.create(options);
+
+    res.json({
+      success: true,
+      order: {
+        id: order.id,
+        amount: order.amount,
+        currency: order.currency,
+        receipt: order.receipt
+      }
+    });
+
+  } catch (error) {
+    console.error('Razorpay order creation failed:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
 module.exports = router;
+
