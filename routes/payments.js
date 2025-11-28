@@ -207,6 +207,29 @@ router.get('/', (req, res) => {
   });
 });
 
+// Mock payment verification for testing
+router.post('/verify-payment-test', async (req, res) => {
+  try {
+    const { razorpay_payment_id, razorpay_order_id, razorpay_signature } = req.body;
+
+    // Mock successful verification for testing
+    res.json({
+      success: true,
+      message: 'Payment verified successfully (TEST MODE)',
+      orderId: razorpay_order_id,
+      paymentId: razorpay_payment_id,
+      testMode: true
+    });
+
+  } catch (error) {
+    console.error('Mock payment verification failed:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
 module.exports = router;
+
 
 
