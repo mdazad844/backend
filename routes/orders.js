@@ -162,5 +162,65 @@ router.post('/:orderId/cancel', async (req, res) => {
   }
 });
 
+// Add this to your orders.js route file
+router.post('/', async (req, res) => {
+  try {
+    const { items, total, customer, shippingAddress, razorpayOrderId } = req.body;
+
+    // Basic validation
+    if (!items || !items.length) {
+      return res.status(400).json({
+        success: false,
+        error: 'Order items are required'
+      });
+    }
+
+    if (!customer || !customer.email) {
+      return res.status(400).json({
+        success: false,
+        error: 'Customer information is required'
+      });
+    }
+
+    // Create order object
+    const order = {
+      orderId: 'MB' + Date.now(),
+      items,
+      total,
+      customer,
+      shippingAddress,
+      razorpayOrderId,
+      status: {
+        payment: 'pending',
+        order: 'created'
+      },
+      createdAt: new Date(),
+      timeline: [
+        {
+          event: 'created',
+          timestamp: new Date(),
+          description: 'Order created successfully'
+        }
+      ]
+    };
+
+    // In a real app, you'd save to database here
+    // const savedOrder = await Order.create(order);
+
+    res.json({
+      success: true,
+      message: 'Order created successfully',
+      order: order
+    });
+
+  } catch (error) {
+    console.error('Order creation failed:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
 
 module.exports = router;
+
