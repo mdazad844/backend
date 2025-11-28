@@ -1,13 +1,13 @@
 const express = require('express');
 const router = express.Router();
-const ShiprocketIntegration = require('../utils/shipping');
+const ShippingCalculator = require('../utils/shipping'); // ✅ Fixed import
 
-const shiprocket = new ShiprocketIntegration();
+const shippingCalculator = new ShippingCalculator();
 
 // Calculate shipping rates
 router.post('/calculate', async (req, res) => {
     try {
-        const { deliveryPincode, orderWeight, orderValue, dimensions } = req.body;
+        const { deliveryPincode, orderWeight, orderValue, state = 'DL' } = req.body;
 
         if (!deliveryPincode || !orderWeight) {
             return res.status(400).json({
@@ -16,20 +16,20 @@ router.post('/calculate', async (req, res) => {
             });
         }
 
-        // Get Shiprocket rates
-        const shiprocketRates = await shiprocket.calculateShipping(
-            deliveryPincode,
-            orderWeight,
-            dimensions
+        // Use your ShippingCalculator instead of Shiprocket
+        const shippingOptions = shippingCalculator.getAllShippingOptions(
+            orderWeight, 
+            state, 
+            orderValue || 0
         );
 
         // Add manual rates as fallback
-        const manualRates = getManualShippingRates(orderValue);
-        const allOptions = [...shiprocketRates, ...manualRates];
+        const manualRates = getManualShippingRates(orderValue || 0);
+        const allOptions = [...shippingOptions, ...manualRates];
 
         // Remove duplicates and sort
         const uniqueOptions = allOptions.filter((option, index, self) =>
-            index === self.findIndex(o => o.id === option.id)
+            index === self.findIndex(o => o.name === option.name)
         ).sort((a, b) => a.charge - b.charge);
 
         res.json({
