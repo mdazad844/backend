@@ -193,5 +193,20 @@ router.post('/create-order', async (req, res) => {
     });
   }
 });
+// Add base GET route
+router.get('/', (req, res) => {
+  res.json({
+    success: true,
+    message: 'Payments API is working',
+    endpoints: {
+      'POST /verify-payment': 'Verify Razorpay payment',
+      'POST /create-order': 'Create Razorpay order (to be added)',
+      'GET /:paymentId': 'Get payment details',
+      'GET /customer/:email': 'Get customer payments'
+    }
+  });
+});
+
 module.exports = router;
+
 
