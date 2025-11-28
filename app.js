@@ -4,8 +4,21 @@ const mongoose = require('mongoose');
 
 const app = express();
 
+// CORS Configuration for your frontend
+const corsOptions = {
+    origin: [
+        'https://blinkberrys.com',
+        'https://www.blinkberrys.com',
+        'http://localhost:3000', // for local development
+        'http://localhost:5173'  // for Vite development
+    ],
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+};
+
 // Middleware
-app.use(cors());
+app.use(cors(corsOptions));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -24,7 +37,8 @@ app.get('/debug-env', (req, res) => {
     nodeEnv: process.env.NODE_ENV,
     port: process.env.PORT,
     hasMongoUri: !!process.env.MONGODB_URI,
-    hasRazorpayKey: !!process.env.RAZORPAY_KEY_ID
+    hasRazorpayKey: !!process.env.RAZORPAY_KEY_ID,
+    frontendUrl: 'https://blinkberrys.com'
   });
 });
 
@@ -47,7 +61,7 @@ try {
   app.use('/api/orders', require('./routes/orders'));
   app.use('/api/analytics', require('./routes/analytics'));
   app.use('/api/webhooks', require('./routes/webhooks'));
-app.use('/api/shipping', require('./routes/shipping'));
+  app.use('/api/shipping', require('./routes/shipping'));
   console.log('✅ All routes loaded successfully');
 } catch (error) {
   console.error('❌ Route loading error:', error);
@@ -62,7 +76,11 @@ app.get('/api/health', async (req, res) => {
     timestamp: new Date().toISOString(),
     database: dbStatus,
     environment: process.env.NODE_ENV || 'development',
-    port: process.env.PORT
+    port: process.env.PORT,
+    cors: {
+      allowedOrigins: corsOptions.origin,
+      frontend: 'https://blinkberrys.com'
+    }
   });
 });
 
@@ -86,11 +104,12 @@ if (process.env.NODE_ENV !== 'test') {
 🚀 MyBrand Backend Server Started!
 📍 Port: ${PORT}
 🌐 Environment: ${process.env.NODE_ENV || 'development'}
+🎯 Frontend: https://blinkberrys.com
 📊 Health: http://0.0.0.0:${PORT}/
 💳 Payments: http://0.0.0.0:${PORT}/api/payments
+🔧 CORS: Enabled for frontend domains
     `);
   });
 }
 
 module.exports = app; // For testing
-
