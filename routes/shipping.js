@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const ShippingCalculator = require('../utils/shipping'); // ✅ Fixed import
+const ShippingCalculator = require('../utils/shipping');
 
 const shippingCalculator = new ShippingCalculator();
 
@@ -16,27 +16,24 @@ router.post('/calculate', async (req, res) => {
             });
         }
 
-        // Use your ShippingCalculator instead of Shiprocket
-        const shippingOptions = shippingCalculator.getAllShippingOptions(
+        console.log('🚀 Calculating shipping for:', { deliveryPincode, orderWeight, orderValue, state });
+
+        // ✅ UPDATED: Pass deliveryPincode to get REAL Shiprocket rates
+        const shippingOptions = await shippingCalculator.getAllShippingOptions(
             orderWeight, 
             state, 
-            orderValue || 0
+            orderValue || 0,
+            deliveryPincode // ✅ ADD THIS
         );
 
-        // Add manual rates as fallback
-        const manualRates = getManualShippingRates(orderValue || 0);
-        const allOptions = [...shippingOptions, ...manualRates];
-
-        // Remove duplicates and sort
-        const uniqueOptions = allOptions.filter((option, index, self) =>
-            index === self.findIndex(o => o.name === option.name)
-        ).sort((a, b) => a.charge - b.charge);
+        console.log('📦 Final shipping options:', shippingOptions);
 
         res.json({
             success: true,
-            shippingOptions: uniqueOptions,
+            shippingOptions: shippingOptions,
             deliveryPincode,
-            orderWeight
+            orderWeight,
+            provider: shippingOptions[0]?.provider || 'custom'
         });
 
     } catch (error) {
