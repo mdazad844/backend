@@ -113,27 +113,39 @@ async calculateShiprocketRates(deliveryPincode, weight, orderValue = 0) {
 }
 
   // ✅ Format Shiprocket API response
-  formatShiprocketOptions(rateData, orderValue) {
+ // ✅ FIXED: Remove free delivery logic completely
+formatShiprocketOptions(rateData, orderValue) {
     if (!rateData.data || !rateData.data.available_courier_companies) {
-      throw new Error('No courier companies available from Shiprocket');
+        throw new Error('No courier companies available from Shiprocket');
     }
 
     const options = rateData.data.available_courier_companies.map(courier => {
-      // Apply free shipping for orders above ₹2000
-      const charge = orderValue > 2000 ? 0 : courier.rate;
-      
-      return {
-        id: `shiprocket_${courier.courier_company_id}`,
-        name: courier.courier_name,
-        charge: Math.round(charge),
-        estimatedDays: courier.estimated_delivery_days || '4-7 days',
-        provider: 'shiprocket',
-        courier: courier.courier_name,
-        freeShipping: orderValue > 2000,
-        rawRate: courier.rate // Keep original rate for reference
-      };
+        // ✅ FIXED: Remove free shipping logic - always use actual rates
+        const charge = courier.rate; // Always use the actual rate
+        
+        // Format estimated days properly
+        let estimatedDays = courier.estimated_delivery_days || '4-7';
+        
+        // Ensure "days" is added if not present
+        if (estimatedDays && !estimatedDays.toLowerCase().includes('day')) {
+            estimatedDays = `${estimatedDays} days`;
+        }
+        
+        return {
+            id: `shiprocket_${courier.courier_company_id}`,
+            name: courier.courier_name,
+            charge: Math.round(charge), // ✅ Always charged amount
+            estimatedDays: estimatedDays,
+            provider: 'shiprocket',
+            courier: courier.courier_name,
+            freeShipping: false, // ✅ Always false - no free delivery
+            rawRate: courier.rate
+        };
     });
 
+    // Sort by price
+    return options.sort((a, b) => a.charge - b.charge);
+}
     // Sort by price
     return options.sort((a, b) => a.charge - b.charge);
   }
@@ -242,4 +254,5 @@ async calculateShiprocketRates(deliveryPincode, weight, orderValue = 0) {
 }
 
 module.exports = ShippingCalculator;
+
 
