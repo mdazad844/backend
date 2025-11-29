@@ -80,115 +80,18 @@ function getManualShippingRates(orderValue) {
 }
 
 
-// Add this temporary debug route
-router.post('/debug-shiprocket', async (req, res) => {
-    try {
-        console.log('🔧 Shiprocket Debug Info:');
-        
-        // Check environment variables
-        const envStatus = {
-            SHIPROCKET_EMAIL: !!process.env.SHIPROCKET_EMAIL,
-            SHIPROCKET_PASSWORD: !!process.env.SHIPROCKET_PASSWORD,
-            SHIPROCKET_PICKUP_PINCODE: process.env.SHIPROCKET_PICKUP_PINCODE || 'Not set'
-        };
-        
-        console.log('🔐 Environment Variables:', envStatus);
-        
-        // Test Shiprocket authentication
-        if (envStatus.SHIPROCKET_EMAIL && envStatus.SHIPROCKET_PASSWORD) {
-            try {
-                const authResponse = await fetch('https://apiv2.shiprocket.in/v1/external/auth/login', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        email: process.env.SHIPROCKET_EMAIL,
-                        password: process.env.SHIPROCKET_PASSWORD
-                    })
-                });
-                
-                console.log('🔑 Shiprocket Auth Status:', authResponse.status);
-                
-                if (authResponse.ok) {
-                    const authData = await authResponse.json();
-                    console.log('✅ Shiprocket Auth Success - Token received');
-                    
-                    // Test rate calculation
-                    const rateResponse = await fetch('https://apiv2.shiprocket.in/v1/external/courier/serviceability/', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Authorization': `Bearer ${authData.token}`
-                        },
-                        body: JSON.stringify({
-                            pickup_postcode: process.env.SHIPROCKET_PICKUP_PINCODE || '110030',
-                            delivery_postcode: '560001',
-                            weight: 2.0,
-                            length: 15,
-                            breadth: 10,
-                            height: 5,
-                            cod: 0
-                        })
-                    });
-                    
-                    console.log('📦 Shiprocket Rate Status:', rateResponse.status);
-                    
-                    if (rateResponse.ok) {
-                        const rateData = await rateResponse.json();
-                        console.log('🎉 Shiprocket Rates Success:', rateData);
-                        return res.json({
-                            status: 'SUCCESS',
-                            envStatus,
-                            auth: 'Working',
-                            rates: 'Working',
-                            rawResponse: rateData
-                        });
-                    } else {
-                        const error = await rateResponse.text();
-                        console.log('❌ Shiprocket Rates Failed:', error);
-                        return res.json({
-                            status: 'RATES_FAILED',
-                            envStatus,
-                            auth: 'Working',
-                            rates: 'Failed',
-                            error: error
-                        });
-                    }
-                    
-                } else {
-                    const error = await authResponse.text();
-                    console.log('❌ Shiprocket Auth Failed:', error);
-                    return res.json({
-                        status: 'AUTH_FAILED',
-                        envStatus,
-                        auth: 'Failed',
-                        error: error
-                    });
-                }
-                
-            } catch (apiError) {
-                console.log('❌ Shiprocket API Error:', apiError);
-                return res.json({
-                    status: 'API_ERROR',
-                    envStatus,
-                    error: apiError.message
-                });
-            }
-        } else {
-            console.log('❌ Missing Shiprocket credentials');
-            return res.json({
-                status: 'MISSING_CREDENTIALS',
-                envStatus
-            });
-        }
-        
-    } catch (error) {
-        console.log('❌ Debug endpoint error:', error);
-        res.status(500).json({
-            status: 'DEBUG_ERROR',
-            error: error.message
-        });
+// Test rate calculation with GET
+const rateResponse = await fetch(`https://apiv2.shiprocket.in/v1/external/courier/serviceability?${new URLSearchParams({
+    pickup_postcode: process.env.SHIPROCKET_PICKUP_PINCODE || '110030',
+    delivery_postcode: '560001',
+    weight: '2.0',
+    cod: '0'
+})}`, {
+    method: 'GET', // ✅ CHANGED TO GET
+    headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${authData.token}`
     }
 });
-
 
 module.exports = router;
