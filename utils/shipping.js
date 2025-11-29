@@ -1,12 +1,16 @@
-// Shipping Calculation Utilities
+// Updated Shipping Calculator with REAL Shiprocket API
 class ShippingCalculator {
   constructor() {
+    this.shiprocketEnabled = process.env.SHIPROCKET_EMAIL && process.env.SHIPROCKET_PASSWORD;
+    this.pickupPincode = process.env.SHIPROCKET_PICKUP_PINCODE || '110030';
+    
+    // Keep your existing fixed rates as fallback
     this.shippingRates = {
       standard: {
-        baseRate: 50, // ₹50 base charge
-        perKg: 25,    // ₹25 per additional kg
-        minWeight: 0.5, // Minimum weight in kg
-        maxWeight: 10,  // Maximum weight in kg
+        baseRate: 50,
+        perKg: 25,
+        minWeight: 0.5,
+        maxWeight: 10,
         estimatedDays: '4-7 business days'
       },
       express: {
@@ -25,7 +29,7 @@ class ShippingCalculator {
       }
     };
 
-    // Zone-based pricing (distance from warehouse)
+    // ... keep your existing zones and multipliers
     this.zones = {
       'north': ['DL', 'HR', 'PB', 'UP', 'UK', 'HP', 'JK', 'CH'],
       'south': ['TN', 'KA', 'KL', 'AP', 'TS', 'PY'],
@@ -43,48 +47,121 @@ class ShippingCalculator {
     };
   }
 
-  // Calculate shipping cost based on weight and destination
-  calculateShipping(weight, state, service = 'standard') {
-    const serviceRates = this.shippingRates[service];
-    
-    if (!serviceRates) {
-      throw new Error(`Invalid shipping service: ${service}`);
+  // ✅ NEW: REAL Shiprocket API Integration
+  async calculateShiprocketRates(deliveryPincode, weight, orderValue = 0) {
+    try {
+      if (!this.shiprocketEnabled) {
+        throw new Error('Shiprocket credentials not configured');
+      }
+
+      console.log('🚀 Calling REAL Shiprocket API...');
+      
+      // 1. Authenticate with Shiprocket
+      const authResponse = await fetch('https://apiv2.shiprocket.in/v1/external/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          email: process.env.SHIPROCKET_EMAIL,
+          password: process.env.SHIPROCKET_PASSWORD
+        })
+      });
+
+      if (!authResponse.ok) {
+        const errorData = await authResponse.json();
+        throw new Error(`Shiprocket auth failed: ${JSON.stringify(errorData)}`);
+      }
+
+      const authData = await authResponse.json();
+      const token = authData.token;
+
+      // 2. Calculate shipping rates
+      const ratePayload = {
+        pickup_postcode: this.pickupPincode,
+        delivery_postcode: deliveryPincode,
+        weight: weight,
+        length: 15,
+        breadth: 10,
+        height: 5,
+        cod: orderValue > 0 ? 0 : 1 // 0 for prepaid, 1 for COD
+      };
+
+      console.log('📦 Shiprocket rate payload:', ratePayload);
+
+      const rateResponse = await fetch('https://apiv2.shiprocket.in/v1/external/courier/serviceability/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(ratePayload)
+      });
+
+      if (!rateResponse.ok) {
+        const errorData = await rateResponse.json();
+        throw new Error(`Shiprocket rates failed: ${JSON.stringify(errorData)}`);
+      }
+
+      const rateData = await rateResponse.json();
+      console.log('✅ Raw Shiprocket response:', rateData);
+
+      return this.formatShiprocketOptions(rateData, orderValue);
+
+    } catch (error) {
+      console.error('❌ Shiprocket API error:', error);
+      throw error; // Re-throw to handle in calling function
     }
-
-    // Validate weight
-    if (weight < serviceRates.minWeight) {
-      weight = serviceRates.minWeight;
-    }
-    
-    if (weight > serviceRates.maxWeight) {
-      throw new Error(`Weight exceeds maximum limit for ${service} shipping`);
-    }
-
-    // Calculate base cost
-    let cost = serviceRates.baseRate;
-    
-    // Add weight-based charges
-    const additionalWeight = Math.max(0, weight - serviceRates.minWeight);
-    cost += Math.ceil(additionalWeight) * serviceRates.perKg;
-
-    // Apply zone multiplier
-    const zone = this.getZone(state);
-    cost *= this.zoneMultipliers[zone];
-
-    // Round to nearest 5 rupees
-    cost = Math.ceil(cost / 5) * 5;
-
-    return {
-      cost: Math.round(cost),
-      service,
-      estimatedDays: serviceRates.estimatedDays,
-      weight: weight,
-      zone
-    };
   }
 
-  // Get all available shipping options
-  getAllShippingOptions(weight, state, orderValue = 0) {
+  // ✅ Format Shiprocket API response
+  formatShiprocketOptions(rateData, orderValue) {
+    if (!rateData.data || !rateData.data.available_courier_companies) {
+      throw new Error('No courier companies available from Shiprocket');
+    }
+
+    const options = rateData.data.available_courier_companies.map(courier => {
+      // Apply free shipping for orders above ₹2000
+      const charge = orderValue > 2000 ? 0 : courier.rate;
+      
+      return {
+        id: `shiprocket_${courier.courier_company_id}`,
+        name: courier.courier_name,
+        charge: Math.round(charge),
+        estimatedDays: courier.estimated_delivery_days || '4-7 days',
+        provider: 'shiprocket',
+        courier: courier.courier_name,
+        freeShipping: orderValue > 2000,
+        rawRate: courier.rate // Keep original rate for reference
+      };
+    });
+
+    // Sort by price
+    return options.sort((a, b) => a.charge - b.charge);
+  }
+
+  // ✅ UPDATED: Get all shipping options (Shiprocket + Fallback)
+  async getAllShippingOptions(weight, state, orderValue = 0, deliveryPincode = null) {
+    try {
+      // Try Shiprocket first if we have delivery pincode
+      if (deliveryPincode && this.shiprocketEnabled) {
+        console.log('🎯 Using REAL Shiprocket rates');
+        const shiprocketOptions = await this.calculateShiprocketRates(deliveryPincode, weight, orderValue);
+        return shiprocketOptions;
+      }
+      
+      // Fallback to custom calculator
+      console.log('📦 Using custom shipping rates (fallback)');
+      return this.getCustomShippingOptions(weight, state, orderValue);
+      
+    } catch (error) {
+      console.error('❌ Shiprocket failed, using fallback:', error.message);
+      return this.getCustomShippingOptions(weight, state, orderValue);
+    }
+  }
+
+  // ✅ Renamed: Your existing custom calculator as fallback
+  getCustomShippingOptions(weight, state, orderValue = 0) {
     const options = [];
     const services = Object.keys(this.shippingRates);
 
@@ -99,34 +176,61 @@ class ShippingCalculator {
         }
 
         options.push({
+          id: `custom_${service}`,
           name: this.getServiceName(service),
-          provider: 'mybrand',
+          provider: 'custom',
           courier: service,
           charge: shipping.cost,
           estimatedDays: shipping.estimatedDays,
           freeShipping: shipping.freeShipping || false
         });
       } catch (error) {
-        // Skip services that don't support the weight
         console.warn(`Skipping ${service} shipping: ${error.message}`);
       }
     }
 
-    // Sort by price (cheapest first)
     return options.sort((a, b) => a.charge - b.charge);
   }
 
-  // Get zone from state code
+  // ✅ Keep your existing methods
+  calculateShipping(weight, state, service = 'standard') {
+    const serviceRates = this.shippingRates[service];
+    
+    if (!serviceRates) {
+      throw new Error(`Invalid shipping service: ${service}`);
+    }
+
+    if (weight < serviceRates.minWeight) weight = serviceRates.minWeight;
+    if (weight > serviceRates.maxWeight) {
+      throw new Error(`Weight exceeds maximum limit for ${service} shipping`);
+    }
+
+    let cost = serviceRates.baseRate;
+    const additionalWeight = Math.max(0, weight - serviceRates.minWeight);
+    cost += Math.ceil(additionalWeight) * serviceRates.perKg;
+
+    const zone = this.getZone(state);
+    cost *= this.zoneMultipliers[zone];
+    cost = Math.ceil(cost / 5) * 5;
+
+    return {
+      cost: Math.round(cost),
+      service,
+      estimatedDays: serviceRates.estimatedDays,
+      weight: weight,
+      zone
+    };
+  }
+
   getZone(stateCode) {
     for (const [zone, states] of Object.entries(this.zones)) {
       if (states.includes(stateCode.toUpperCase())) {
         return zone;
       }
     }
-    return 'north'; // Default zone
+    return 'north';
   }
 
-  // Get human-readable service name
   getServiceName(service) {
     const names = {
       standard: 'Standard Shipping',
@@ -136,46 +240,7 @@ class ShippingCalculator {
     return names[service] || service;
   }
 
-  // Calculate package weight from order items
-  calculateOrderWeight(items) {
-    const itemWeight = 0.3; // 0.3kg per t-shirt (including packaging)
-    const totalItems = items.reduce((sum, item) => sum + item.quantity, 0);
-    const weight = totalItems * itemWeight;
-    
-    // Minimum weight 0.5kg
-    return Math.max(weight, 0.5);
-  }
-
-  // Validate shipping address
-  validateShippingAddress(address) {
-    const errors = [];
-
-    if (!address.pincode || address.pincode.length !== 6) {
-      errors.push('Valid 6-digit pincode is required');
-    }
-
-    if (!address.state) {
-      errors.push('State is required');
-    }
-
-    if (!address.city) {
-      errors.push('City is required');
-    }
-
-    if (!address.line1) {
-      errors.push('Address line 1 is required');
-    }
-
-    return {
-      isValid: errors.length === 0,
-      errors
-    };
-  }
-
-  // Get shipping zones information
-  getZonesInfo() {
-    return this.zones;
-  }
+  // ... keep your other existing methods
 }
 
 module.exports = ShippingCalculator;
