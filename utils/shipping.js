@@ -114,7 +114,7 @@ async calculateShiprocketRates(deliveryPincode, weight, orderValue = 0) {
 
   // ✅ Format Shiprocket API response
  // ✅ FIXED: Remove free delivery logic completely
-// ✅ FIXED: Remove free delivery logic completely
+
 formatShiprocketOptions(rateData, orderValue) {
     if (!rateData.data || !rateData.data.available_courier_companies) {
         throw new Error('No courier companies available from Shiprocket');
@@ -169,36 +169,34 @@ formatShiprocketOptions(rateData, orderValue) {
   }
 
   // ✅ Renamed: Your existing custom calculator as fallback
-  getCustomShippingOptions(weight, state, orderValue = 0) {
+  // ✅ FIXED: Remove free shipping from custom options too
+getCustomShippingOptions(weight, state, orderValue = 0) {
     const options = [];
     const services = Object.keys(this.shippingRates);
 
     for (const service of services) {
-      try {
-        const shipping = this.calculateShipping(weight, state, service);
-        
-        // Apply free shipping for orders above ₹2000
-        if (orderValue > 2000 && service === 'standard') {
-          shipping.cost = 0;
-          shipping.freeShipping = true;
+        try {
+            const shipping = this.calculateShipping(weight, state, service);
+            
+            // ✅ REMOVED: Free shipping logic
+            // Always charge the calculated amount
+            
+            options.push({
+                id: `custom_${service}`,
+                name: this.getServiceName(service),
+                provider: 'custom',
+                courier: service,
+                charge: shipping.cost, // ✅ Always charged
+                estimatedDays: shipping.estimatedDays,
+                freeShipping: false // ✅ Always false
+            });
+        } catch (error) {
+            console.warn(`Skipping ${service} shipping: ${error.message}`);
         }
-
-        options.push({
-          id: `custom_${service}`,
-          name: this.getServiceName(service),
-          provider: 'custom',
-          courier: service,
-          charge: shipping.cost,
-          estimatedDays: shipping.estimatedDays,
-          freeShipping: shipping.freeShipping || false
-        });
-      } catch (error) {
-        console.warn(`Skipping ${service} shipping: ${error.message}`);
-      }
     }
 
     return options.sort((a, b) => a.charge - b.charge);
-  }
+}
 
   // ✅ Keep your existing methods
   calculateShipping(weight, state, service = 'standard') {
@@ -252,6 +250,7 @@ formatShiprocketOptions(rateData, orderValue) {
 }
 
 module.exports = ShippingCalculator;
+
 
 
 
