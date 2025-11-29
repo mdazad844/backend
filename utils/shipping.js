@@ -47,72 +47,70 @@ class ShippingCalculator {
     };
   }
 
-  // ✅ NEW: REAL Shiprocket API Integration
-  async calculateShiprocketRates(deliveryPincode, weight, orderValue = 0) {
+// ✅ FIXED: Correct Shiprocket API call with GET method
+async calculateShiprocketRates(deliveryPincode, weight, orderValue = 0) {
     try {
-      if (!this.shiprocketEnabled) {
-        throw new Error('Shiprocket credentials not configured');
-      }
+        if (!this.shiprocketEnabled) {
+            throw new Error('Shiprocket credentials not configured');
+        }
 
-      console.log('🚀 Calling REAL Shiprocket API...');
-      
-      // 1. Authenticate with Shiprocket
-      const authResponse = await fetch('https://apiv2.shiprocket.in/v1/external/auth/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          email: process.env.SHIPROCKET_EMAIL,
-          password: process.env.SHIPROCKET_PASSWORD
-        })
-      });
+        console.log('🚀 Calling REAL Shiprocket API...');
+        
+        // 1. Authenticate with Shiprocket
+        const authResponse = await fetch('https://apiv2.shiprocket.in/v1/external/auth/login', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                email: process.env.SHIPROCKET_EMAIL,
+                password: process.env.SHIPROCKET_PASSWORD
+            })
+        });
 
-      if (!authResponse.ok) {
-        const errorData = await authResponse.json();
-        throw new Error(`Shiprocket auth failed: ${JSON.stringify(errorData)}`);
-      }
+        if (!authResponse.ok) {
+            const errorData = await authResponse.json();
+            throw new Error(`Shiprocket auth failed: ${JSON.stringify(errorData)}`);
+        }
 
-      const authData = await authResponse.json();
-      const token = authData.token;
+        const authData = await authResponse.json();
+        const token = authData.token;
 
-      // 2. Calculate shipping rates
-      const ratePayload = {
-        pickup_postcode: this.pickupPincode,
-        delivery_postcode: deliveryPincode,
-        weight: weight,
-        length: 15,
-        breadth: 10,
-        height: 5,
-        cod: orderValue > 0 ? 0 : 1 // 0 for prepaid, 1 for COD
-      };
+        // 2. ✅ FIXED: Use GET request with query parameters
+        const params = new URLSearchParams({
+            pickup_postcode: this.pickupPincode,
+            delivery_postcode: deliveryPincode,
+            weight: weight.toString(),
+            cod: orderValue > 0 ? '0' : '1'
+        });
 
-      console.log('📦 Shiprocket rate payload:', ratePayload);
+        console.log('📦 Shiprocket API URL with params:', `https://apiv2.shiprocket.in/v1/external/courier/serviceability?${params}`);
 
-      const rateResponse = await fetch('https://apiv2.shiprocket.in/v1/external/courier/serviceability/', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(ratePayload)
-      });
+        const rateResponse = await fetch(`https://apiv2.shiprocket.in/v1/external/courier/serviceability?${params}`, {
+            method: 'GET', // ✅ CHANGED TO GET
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            }
+        });
 
-      if (!rateResponse.ok) {
-        const errorData = await rateResponse.json();
-        throw new Error(`Shiprocket rates failed: ${JSON.stringify(errorData)}`);
-      }
+        console.log('📊 Shiprocket Rate Response Status:', rateResponse.status);
 
-      const rateData = await rateResponse.json();
-      console.log('✅ Raw Shiprocket response:', rateData);
+        if (!rateResponse.ok) {
+            const errorText = await rateResponse.text();
+            throw new Error(`Shiprocket rates failed: ${rateResponse.status} - ${errorText}`);
+        }
 
-      return this.formatShiprocketOptions(rateData, orderValue);
+        const rateData = await rateResponse.json();
+        console.log('✅ Raw Shiprocket response:', rateData);
+
+        return this.formatShiprocketOptions(rateData, orderValue);
 
     } catch (error) {
-      console.error('❌ Shiprocket API error:', error);
-      throw error; // Re-throw to handle in calling function
+        console.error('❌ Shiprocket API error:', error);
+        throw error;
     }
-  }
+}
 
   // ✅ Format Shiprocket API response
   formatShiprocketOptions(rateData, orderValue) {
@@ -244,3 +242,4 @@ class ShippingCalculator {
 }
 
 module.exports = ShippingCalculator;
+
