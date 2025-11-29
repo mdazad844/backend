@@ -114,6 +114,7 @@ async calculateShiprocketRates(deliveryPincode, weight, orderValue = 0) {
 
   // ✅ Format Shiprocket API response
  // ✅ FIXED: Remove free delivery logic completely
+// ✅ FIXED: Remove free delivery logic completely
 formatShiprocketOptions(rateData, orderValue) {
     if (!rateData.data || !rateData.data.available_courier_companies) {
         throw new Error('No courier companies available from Shiprocket');
@@ -123,7 +124,7 @@ formatShiprocketOptions(rateData, orderValue) {
         // ✅ FIXED: Remove free shipping logic - always use actual rates
         const charge = courier.rate; // Always use the actual rate
         
-        // Format estimated days properly
+        // ✅ FIXED: Format estimated days properly
         let estimatedDays = courier.estimated_delivery_days || '4-7';
         
         // Ensure "days" is added if not present
@@ -135,7 +136,7 @@ formatShiprocketOptions(rateData, orderValue) {
             id: `shiprocket_${courier.courier_company_id}`,
             name: courier.courier_name,
             charge: Math.round(charge), // ✅ Always charged amount
-            estimatedDays: estimatedDays,
+            estimatedDays: estimatedDays, // ✅ Now shows "2 days" instead of "2"
             provider: 'shiprocket',
             courier: courier.courier_name,
             freeShipping: false, // ✅ Always false - no free delivery
@@ -146,9 +147,6 @@ formatShiprocketOptions(rateData, orderValue) {
     // Sort by price
     return options.sort((a, b) => a.charge - b.charge);
 }
-    // Sort by price
-    return options.sort((a, b) => a.charge - b.charge);
-  }
 
   // ✅ UPDATED: Get all shipping options (Shiprocket + Fallback)
   async getAllShippingOptions(weight, state, orderValue = 0, deliveryPincode = null) {
@@ -254,5 +252,6 @@ formatShiprocketOptions(rateData, orderValue) {
 }
 
 module.exports = ShippingCalculator;
+
 
 
