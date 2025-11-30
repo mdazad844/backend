@@ -10,9 +10,12 @@ const razorpay = new Razorpay({
 });
 
 // ✅ ENHANCED PAYMENT VERIFICATION WITH PAYMENT MODEL
+
 router.post('/verify-payment', async (req, res) => {
   try {
-    const { razorpay_payment_id, razorpay_order_id, razorpay_signature } = req.body;
+    const { razorpay_payment_id, razorpay_order_id, razorpay_signature, order_id } = req.body;
+
+    console.log('🔍 Verifying payment:', { razorpay_payment_id, razorpay_order_id, order_id });
 
     // Signature verification
     const crypto = require('crypto');
@@ -23,7 +26,9 @@ router.post('/verify-payment', async (req, res) => {
       .digest('hex');
 
     if (expectedSignature !== razorpay_signature) {
-      // Log failed verification attempt
+      console.error('❌ Signature verification failed');
+      
+      // Create failed payment record
       await Payment.create({
         razorpayPaymentId: razorpay_payment_id,
         razorpayOrderId: razorpay_order_id,
@@ -44,15 +49,25 @@ router.post('/verify-payment', async (req, res) => {
 
     // Get payment details from Razorpay
     const paymentDetails = await razorpay.payments.fetch(razorpay_payment_id);
+    console.log('📊 Payment details from Razorpay:', paymentDetails.status);
     
-    // Find the associated order
-    const order = await Order.findOne({ razorpayOrderId: razorpay_order_id });
+    // Find the associated order - try multiple ways
+    let order = await Order.findOne({ razorpayOrderId: razorpay_order_id });
+    
+    // If not found by razorpayOrderId, try by order_id from frontend
+    if (!order && order_id) {
+      order = await Order.findOne({ orderId: order_id });
+    }
+    
     if (!order) {
+      console.error('❌ Order not found for:', { razorpay_order_id, order_id });
       return res.status(404).json({
         success: false,
         error: 'Order not found'
       });
     }
+
+    console.log('✅ Order found:', order.orderId);
 
     // Create payment record
     const payment = new Payment({
@@ -68,15 +83,15 @@ router.post('/verify-payment', async (req, res) => {
       vpa: paymentDetails.vpa,
       status: 'captured',
       customer: {
-        email: order.customer.email,
-        phone: order.customer.phone,
-        name: order.customer.name
+        email: order.customer?.email || 'unknown@example.com',
+        phone: order.customer?.phone || '',
+        name: order.customer?.name || 'Customer'
       },
       capturedAt: new Date()
     });
 
     // Add card details if payment was by card
-    if (paymentDetails.method === 'card') {
+    if (paymentDetails.method === 'card' && paymentDetails.card) {
       payment.card = {
         network: paymentDetails.card.network,
         type: paymentDetails.card.type,
@@ -86,14 +101,24 @@ router.post('/verify-payment', async (req, res) => {
     }
 
     await payment.save();
+    console.log('✅ Payment record created:', payment.razorpayPaymentId);
 
-    // Update order status
+    // ✅ FIXED: Update order status using standard fields
     order.razorpayPaymentId = razorpay_payment_id;
-    order.status.payment = 'paid';
-    order.status.order = 'confirmed';
-    order.addTimelineEvent('confirmed', 'Payment received and order confirmed');
+    order.paymentStatus = 'paid';
+    order.status = 'confirmed';
+    order.paidAt = new Date();
+    
+    // If order doesn't have these fields, use whatever status fields exist
+    if (order.status) {
+      order.status = 'confirmed';
+    }
+    if (order.paymentStatus) {
+      order.paymentStatus = 'paid';
+    }
 
     await order.save();
+    console.log('✅ Order updated:', order.orderId);
 
     res.json({
       success: true,
@@ -103,7 +128,7 @@ router.post('/verify-payment', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Payment verification failed:', error);
+    console.error('❌ Payment verification failed:', error);
     res.status(500).json({
       success: false,
       error: error.message
@@ -248,6 +273,7 @@ router.post('/verify-payment-test', async (req, res) => {
   }
 });
 module.exports = router;
+
 
 
 
