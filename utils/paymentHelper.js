@@ -45,6 +45,28 @@ async createRazorpayOrder(orderData) {
   }
 }
 
+
+
+  // Manual capture function for authorized payments
+async captureAuthorizedPayment(paymentId, amount) {
+  try {
+    const captureData = {
+      amount: Math.round(amount), // amount in paise
+      currency: 'INR'
+    };
+
+    const payment = await this.razorpay.payments.capture(paymentId, captureData);
+    console.log(`✅ Manually captured payment: ${payment.id}`);
+    return { success: true, payment };
+
+  } catch (error) {
+    console.error('❌ Manual capture failed:', error);
+    return { success: false, error: error.error?.description || error.message };
+  }
+}
+
+  
+
   // Verify payment signature
   verifyPaymentSignature(paymentData) {
     const { razorpay_payment_id, razorpay_order_id, razorpay_signature } = paymentData;
@@ -267,4 +289,5 @@ async createRazorpayOrder(orderData) {
 
 
 module.exports = PaymentHelper;
+
 
