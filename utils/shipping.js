@@ -8,8 +8,8 @@ class ShippingCalculator {
     this.shippingRates = {
  
      standard: {
-        baseRate: 50, 
-        perKg: 25, 
+        baseRate: 1, //50
+        perKg: 1, //25
         minWeight: 0.5,
         maxWeight: 10,
         estimatedDays: '4-7 business days'
@@ -26,7 +26,7 @@ class ShippingCalculator {
         perKg: 60,
         minWeight: 0.5,
         maxWeight: 3,
-        estimatedDays: 'Next business days'
+        estimatedDays: 'Next business days' 
       }
     };
 
@@ -265,6 +265,7 @@ getCustomShippingOptions(weight, state, orderValue = 0) {
 }
 
 module.exports = ShippingCalculator;
+
 
 
 
