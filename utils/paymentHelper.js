@@ -270,47 +270,12 @@ async createRazorpayOrder(orderData) {
 
 
 
-// ✅ ADD THIS DEBUG FUNCTION
-async debugPaymentCapture(paymentId, orderId) {
-    try {
-        console.log('🔍 DEBUGGING PAYMENT CAPTURE:');
-        
-        // 1. Check payment status
-        const paymentStatus = await this.checkPaymentStatus(paymentId);
-        console.log('📊 Payment Status:', paymentStatus);
-        
-        // 2. Check order details
-        const order = await this.razorpay.orders.fetch(orderId);
-        console.log('📊 Order Details:', {
-            id: order.id,
-            amount: order.amount,
-            currency: order.currency,
-            payment_capture: order.payment_capture,
-            status: order.status
-        });
-        
-        // 3. Check if payment is captured
-        if (paymentStatus.status === 'authorized' && !paymentStatus.captured) {
-            console.log('⚠️ Payment authorized but not captured');
-            
-            // Try manual capture
-            console.log('🔄 Attempting manual capture...');
-            const captureResult = await this.captureAuthorizedPayment(paymentId, paymentStatus.amount);
-            console.log('🔧 Manual Capture Result:', captureResult);
-        }
-        
-        return { paymentStatus, order };
-        
-    } catch (error) {
-        console.error('❌ Debug error:', error);
-        return { error: error.message };
-    }
-}
 
 
 
 
 module.exports = PaymentHelper;
+
 
 
 
