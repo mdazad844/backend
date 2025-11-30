@@ -155,10 +155,12 @@ router.get('/customer/:email', async (req, res) => {
   }
 });
 
-// Add this to your payments.js file before module.exports
+// ✅ FIXED: CREATE ORDER ENDPOINT USING PAYMENTHELPER
 router.post('/create-order', async (req, res) => {
   try {
-    const { amount, currency = 'INR', receipt } = req.body;
+    console.log('🔄 Creating Razorpay order...', req.body);
+    
+    const { amount, currency = 'INR', receipt, notes } = req.body;
 
     if (!amount) {
       return res.status(400).json({
@@ -167,26 +169,42 @@ router.post('/create-order', async (req, res) => {
       });
     }
 
-    const options = {
-      amount: amount * 100, // Razorpay expects paise
+    // ✅ USE PAYMENTHELPER INSTEAD OF DIRECT RAZORPAY
+    const PaymentHelper = require('../utils/paymentHelper');
+    const paymentHelper = new PaymentHelper();
+    
+    const orderData = {
+      amount: Math.round(amount), // amount in paise (already converted by frontend)
       currency: currency,
-      receipt: receipt || `receipt_${Date.now()}`
+      receipt: receipt || `rcpt_${Date.now()}`,
+      notes: notes || {}
     };
-
-    const order = await razorpay.orders.create(options);
-
-    res.json({
-      success: true,
-      order: {
-        id: order.id,
+    
+    console.log('📦 Creating Razorpay order with:', orderData);
+    
+    // Create Razorpay order using PaymentHelper
+    const order = await paymentHelper.createRazorpayOrder(orderData);
+    
+    if (order.success) {
+      console.log('✅ Razorpay order created:', order.orderId);
+      
+      // ✅ RETURN THE CORRECT FORMAT THAT FRONTEND EXPECTS
+      res.json({
+        success: true,
+        razorpayOrderId: order.orderId, // Frontend expects this exact field name
         amount: order.amount,
-        currency: order.currency,
-        receipt: order.receipt
-      }
-    });
-
+        currency: order.currency
+      });
+    } else {
+      console.error('❌ Razorpay order creation failed:', order.error);
+      res.status(400).json({
+        success: false,
+        error: order.error
+      });
+    }
+    
   } catch (error) {
-    console.error('Razorpay order creation failed:', error);
+    console.error('❌ Order creation endpoint failed:', error);
     res.status(500).json({
       success: false,
       error: error.message
@@ -230,6 +248,7 @@ router.post('/verify-payment-test', async (req, res) => {
   }
 });
 module.exports = router;
+
 
 
 
