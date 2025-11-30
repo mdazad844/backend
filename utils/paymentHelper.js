@@ -45,26 +45,6 @@ async createRazorpayOrder(orderData) {
   }
 }
 
-
-
-  // Manual capture function for authorized payments
-async captureAuthorizedPayment(paymentId, amount) {
-  try {
-    const captureData = {
-      amount: Math.round(amount), // amount in paise
-      currency: 'INR'
-    };
-
-    const payment = await this.razorpay.payments.capture(paymentId, captureData);
-    console.log(`✅ Manually captured payment: ${payment.id}`);
-    return { success: true, payment };
-
-  } catch (error) {
-    console.error('❌ Manual capture failed:', error);
-    return { success: false, error: error.error?.description || error.message };
-  }
-}
-
   
 
   // Verify payment signature
@@ -288,6 +268,49 @@ async captureAuthorizedPayment(paymentId, amount) {
 }
 
 
+
+
+// ✅ ADD THIS DEBUG FUNCTION
+async debugPaymentCapture(paymentId, orderId) {
+    try {
+        console.log('🔍 DEBUGGING PAYMENT CAPTURE:');
+        
+        // 1. Check payment status
+        const paymentStatus = await this.checkPaymentStatus(paymentId);
+        console.log('📊 Payment Status:', paymentStatus);
+        
+        // 2. Check order details
+        const order = await this.razorpay.orders.fetch(orderId);
+        console.log('📊 Order Details:', {
+            id: order.id,
+            amount: order.amount,
+            currency: order.currency,
+            payment_capture: order.payment_capture,
+            status: order.status
+        });
+        
+        // 3. Check if payment is captured
+        if (paymentStatus.status === 'authorized' && !paymentStatus.captured) {
+            console.log('⚠️ Payment authorized but not captured');
+            
+            // Try manual capture
+            console.log('🔄 Attempting manual capture...');
+            const captureResult = await this.captureAuthorizedPayment(paymentId, paymentStatus.amount);
+            console.log('🔧 Manual Capture Result:', captureResult);
+        }
+        
+        return { paymentStatus, order };
+        
+    } catch (error) {
+        console.error('❌ Debug error:', error);
+        return { error: error.message };
+    }
+}
+
+
+
+
 module.exports = PaymentHelper;
+
 
 
