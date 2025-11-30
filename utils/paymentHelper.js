@@ -20,7 +20,7 @@ class PaymentHelper {
         currency: currency || 'INR',
         receipt: receipt,
         notes: notes,
-        payment_capture: 1 // auto capture
+       
       };
 
       const order = await this.razorpay.orders.create(options);
@@ -263,5 +263,6 @@ class PaymentHelper {
     return { start, end };
   }
 }
+
 
 module.exports = PaymentHelper;
