@@ -9,12 +9,24 @@ const razorpay = new Razorpay({
   key_secret: process.env.RAZORPAY_KEY_SECRET
 });
 
-// ✅ FIXED PAYMENT VERIFICATION WITH AUTO-ORDER CREATION
+// ✅ FIXED VERIFICATION ENDPOINT - USES order_data FROM FRONTEND
 router.post('/verify-payment', async (req, res) => {
   try {
-    const { razorpay_payment_id, razorpay_order_id, razorpay_signature, order_id } = req.body;
+    const { 
+      razorpay_payment_id, 
+      razorpay_order_id, 
+      razorpay_signature, 
+      order_id,
+      order_data  // ✅ This is now coming from frontend with all required fields
+    } = req.body;
 
-    console.log('🔍 Verifying payment:', { razorpay_payment_id, razorpay_order_id, order_id });
+    console.log('🔍 Verifying payment with order_data:', { 
+      razorpay_payment_id, 
+      razorpay_order_id, 
+      order_id,
+      has_order_data: !!order_data,
+      order_data: order_data // Log the actual order_data
+    });
 
     // Signature verification
     const crypto = require('crypto');
@@ -49,44 +61,44 @@ router.post('/verify-payment', async (req, res) => {
     const paymentDetails = await razorpay.payments.fetch(razorpay_payment_id);
     console.log('📊 Payment details:', paymentDetails.status);
     
-    // ✅ FIXED: CREATE ORDER IF NOT FOUND
+    // ✅ FIXED: USE order_data FROM FRONTEND TO CREATE COMPLETE ORDER
     let order = await Order.findOne({ razorpayOrderId: razorpay_order_id });
     
     if (!order && order_id) {
       order = await Order.findOne({ orderId: order_id });
     }
     
-    // If order still not found, create it
-    if (!order && order_id) {
-      console.log('🔄 Order not found, creating new order...');
+    // If order still not found, create it with the complete order_data from frontend
+    if (!order) {
+      console.log('🔄 Order not found, creating new order with provided order_data...');
       
+      // ✅ USE ALL THE DATA FROM FRONTEND'S order_data
       order = new Order({
-        orderId: order_id,
+        orderId: order_data.orderId || order_id,
         razorpayOrderId: razorpay_order_id,
         razorpayPaymentId: razorpay_payment_id,
         amount: paymentDetails.amount / 100,
         currency: paymentDetails.currency,
         status: 'confirmed',
         paymentStatus: 'paid',
+        paymentMethod: order_data.paymentMethod || 'razorpay', // ✅ FROM order_data
         paidAt: new Date(),
-        customer: {
+        customer: order_data.customer || { // ✅ FROM order_data
           email: paymentDetails.email || 'customer@example.com',
           name: 'Customer'
         },
-        items: [],
-        address: {}
+        items: order_data.items || [], // ✅ FROM order_data
+        pricing: order_data.pricing || { // ✅ FROM order_data
+          subtotal: 0,
+          taxAmount: 0,
+          deliveryCharge: 0,
+          total: paymentDetails.amount / 100
+        },
+        address: order_data.shippingAddress || {} // ✅ FROM order_data
       });
       
       await order.save();
-      console.log('✅ Order created in database:', order.orderId);
-    }
-
-    if (!order) {
-      console.error('❌ Order not found and could not create');
-      return res.status(404).json({
-        success: false,
-        error: 'Order not found'
-      });
+      console.log('✅ Order created in database with complete data from frontend');
     }
 
     console.log('✅ Order found/created:', order.orderId);
@@ -307,3 +319,4 @@ router.post('/verify-payment-test', async (req, res) => {
 });
 
 module.exports = router;
+
