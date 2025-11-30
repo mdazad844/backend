@@ -12,21 +12,31 @@ const razorpay = new Razorpay({
 // ✅ FIXED VERIFICATION ENDPOINT - USES order_data FROM FRONTEND
 router.post('/verify-payment', async (req, res) => {
   try {
+    console.log('🎯 BACKEND VERIFICATION DEBUG START ==========');
     const { 
       razorpay_payment_id, 
       razorpay_order_id, 
       razorpay_signature, 
       order_id,
-      order_data  // ✅ This is now coming from frontend with all required fields
+      order_data
     } = req.body;
 
-    console.log('🔍 Verifying payment with order_data:', { 
+    console.log('🔍 Received verification request:', { 
       razorpay_payment_id, 
       razorpay_order_id, 
       order_id,
-      has_order_data: !!order_data,
-      order_data: order_data // Log the actual order_data
+      has_order_data: !!order_data
     });
+
+    if (order_data) {
+      console.log('📦 Order data received:', {
+        items_count: order_data.items?.length || 0,
+        pricing: order_data.pricing,
+        shippingAddress: order_data.shippingAddress,
+        paymentMethod: order_data.paymentMethod,
+        customer: order_data.customer
+      });
+    }
 
     // Signature verification
     const crypto = require('crypto');
@@ -36,74 +46,76 @@ router.post('/verify-payment', async (req, res) => {
       .update(body)
       .digest('hex');
 
+    console.log('🔐 Signature verification:', {
+      received: razorpay_signature,
+      expected: expectedSignature,
+      match: expectedSignature === razorpay_signature
+    });
+
     if (expectedSignature !== razorpay_signature) {
       console.error('❌ Signature verification failed');
-      
-      await Payment.create({
-        razorpayPaymentId: razorpay_payment_id,
-        razorpayOrderId: razorpay_order_id,
-        razorpaySignature: razorpay_signature,
-        status: 'failed',
-        error: {
-          code: 'INVALID_SIGNATURE',
-          description: 'Payment signature verification failed',
-          step: 'verification'
-        }
-      });
-      
       return res.status(400).json({
         success: false,
         error: 'Invalid payment signature'
       });
     }
 
+    console.log('✅ Signature verification passed');
+
     // Get payment details from Razorpay
+    console.log('🔍 Fetching payment details from Razorpay...');
     const paymentDetails = await razorpay.payments.fetch(razorpay_payment_id);
-    console.log('📊 Payment details:', paymentDetails.status);
+    console.log('📊 Razorpay payment details:', paymentDetails.status);
     
-    // ✅ FIXED: USE order_data FROM FRONTEND TO CREATE COMPLETE ORDER
+    // Order creation/retrieval logic
     let order = await Order.findOne({ razorpayOrderId: razorpay_order_id });
     
     if (!order && order_id) {
       order = await Order.findOne({ orderId: order_id });
     }
     
-    // If order still not found, create it with the complete order_data from frontend
     if (!order) {
-      console.log('🔄 Order not found, creating new order with provided order_data...');
+      console.log('🔄 Creating new order in database...');
       
-      // ✅ USE ALL THE DATA FROM FRONTEND'S order_data
       order = new Order({
-        orderId: order_data.orderId || order_id,
+        orderId: order_data?.orderId || order_id,
         razorpayOrderId: razorpay_order_id,
         razorpayPaymentId: razorpay_payment_id,
         amount: paymentDetails.amount / 100,
         currency: paymentDetails.currency,
         status: 'confirmed',
         paymentStatus: 'paid',
-        paymentMethod: order_data.paymentMethod || 'razorpay', // ✅ FROM order_data
+        paymentMethod: order_data?.paymentMethod || 'razorpay',
         paidAt: new Date(),
-        customer: order_data.customer || { // ✅ FROM order_data
+        customer: order_data?.customer || {
           email: paymentDetails.email || 'customer@example.com',
           name: 'Customer'
         },
-        items: order_data.items || [], // ✅ FROM order_data
-        pricing: order_data.pricing || { // ✅ FROM order_data
-          subtotal: 0,
+        items: order_data?.items || [],
+        pricing: order_data?.pricing || {
+          subtotal: paymentDetails.amount / 100,
           taxAmount: 0,
           deliveryCharge: 0,
           total: paymentDetails.amount / 100
         },
-        address: order_data.shippingAddress || {} // ✅ FROM order_data
+        address: order_data?.shippingAddress || {
+          line1: 'Default Address',
+          city: 'Default City',
+          state: 'Default State',
+          pincode: '000000',
+          country: 'India'
+        }
       });
       
+      console.log('💾 Saving order to database...');
       await order.save();
-      console.log('✅ Order created in database with complete data from frontend');
+      console.log('✅ Order created successfully:', order.orderId);
+    } else {
+      console.log('✅ Order found in database:', order.orderId);
     }
 
-    console.log('✅ Order found/created:', order.orderId);
-
     // Create payment record
+    console.log('💾 Creating payment record...');
     const payment = new Payment({
       razorpayPaymentId: razorpay_payment_id,
       razorpayOrderId: razorpay_order_id,
@@ -112,26 +124,13 @@ router.post('/verify-payment', async (req, res) => {
       amount: paymentDetails.amount,
       currency: paymentDetails.currency,
       method: paymentDetails.method,
-      bank: paymentDetails.bank,
-      wallet: paymentDetails.wallet,
-      vpa: paymentDetails.vpa,
       status: 'captured',
       customer: {
         email: order.customer?.email || 'unknown@example.com',
-        phone: order.customer?.phone || '',
         name: order.customer?.name || 'Customer'
       },
       capturedAt: new Date()
     });
-
-    if (paymentDetails.method === 'card' && paymentDetails.card) {
-      payment.card = {
-        network: paymentDetails.card.network,
-        type: paymentDetails.card.type,
-        issuer: paymentDetails.card.issuer,
-        last4: paymentDetails.card.last4
-      };
-    }
 
     await payment.save();
     console.log('✅ Payment record created');
@@ -145,6 +144,8 @@ router.post('/verify-payment', async (req, res) => {
     await order.save();
     console.log('✅ Order updated successfully');
 
+    console.log('🎉 BACKEND VERIFICATION COMPLETED SUCCESSFULLY ==========');
+
     res.json({
       success: true,
       message: 'Payment verified and order confirmed',
@@ -153,7 +154,8 @@ router.post('/verify-payment', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('❌ Payment verification failed:', error);
+    console.error('💥 BACKEND VERIFICATION FAILED:', error);
+    console.error('💥 Error stack:', error.stack);
     res.status(500).json({
       success: false,
       error: error.message
@@ -319,4 +321,5 @@ router.post('/verify-payment-test', async (req, res) => {
 });
 
 module.exports = router;
+
 
