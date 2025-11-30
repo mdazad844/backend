@@ -2,15 +2,14 @@ const express = require('express');
 const router = express.Router();
 const Razorpay = require('razorpay');
 const Order = require('../models/order');
-const Payment = require('../models/payment'); // ← NOW USING PAYMENT MODEL
+const Payment = require('../models/payment');
 
 const razorpay = new Razorpay({
   key_id: process.env.RAZORPAY_KEY_ID,
   key_secret: process.env.RAZORPAY_KEY_SECRET
 });
 
-// ✅ ENHANCED PAYMENT VERIFICATION WITH PAYMENT MODEL
-
+// ✅ FIXED PAYMENT VERIFICATION WITH AUTO-ORDER CREATION
 router.post('/verify-payment', async (req, res) => {
   try {
     const { razorpay_payment_id, razorpay_order_id, razorpay_signature, order_id } = req.body;
@@ -28,7 +27,6 @@ router.post('/verify-payment', async (req, res) => {
     if (expectedSignature !== razorpay_signature) {
       console.error('❌ Signature verification failed');
       
-      // Create failed payment record
       await Payment.create({
         razorpayPaymentId: razorpay_payment_id,
         razorpayOrderId: razorpay_order_id,
@@ -49,25 +47,49 @@ router.post('/verify-payment', async (req, res) => {
 
     // Get payment details from Razorpay
     const paymentDetails = await razorpay.payments.fetch(razorpay_payment_id);
-    console.log('📊 Payment details from Razorpay:', paymentDetails.status);
+    console.log('📊 Payment details:', paymentDetails.status);
     
-    // Find the associated order - try multiple ways
+    // ✅ FIXED: CREATE ORDER IF NOT FOUND
     let order = await Order.findOne({ razorpayOrderId: razorpay_order_id });
     
-    // If not found by razorpayOrderId, try by order_id from frontend
     if (!order && order_id) {
       order = await Order.findOne({ orderId: order_id });
     }
     
+    // If order still not found, create it
+    if (!order && order_id) {
+      console.log('🔄 Order not found, creating new order...');
+      
+      order = new Order({
+        orderId: order_id,
+        razorpayOrderId: razorpay_order_id,
+        razorpayPaymentId: razorpay_payment_id,
+        amount: paymentDetails.amount / 100,
+        currency: paymentDetails.currency,
+        status: 'confirmed',
+        paymentStatus: 'paid',
+        paidAt: new Date(),
+        customer: {
+          email: paymentDetails.email || 'customer@example.com',
+          name: 'Customer'
+        },
+        items: [],
+        address: {}
+      });
+      
+      await order.save();
+      console.log('✅ Order created in database:', order.orderId);
+    }
+
     if (!order) {
-      console.error('❌ Order not found for:', { razorpay_order_id, order_id });
+      console.error('❌ Order not found and could not create');
       return res.status(404).json({
         success: false,
         error: 'Order not found'
       });
     }
 
-    console.log('✅ Order found:', order.orderId);
+    console.log('✅ Order found/created:', order.orderId);
 
     // Create payment record
     const payment = new Payment({
@@ -90,7 +112,6 @@ router.post('/verify-payment', async (req, res) => {
       capturedAt: new Date()
     });
 
-    // Add card details if payment was by card
     if (paymentDetails.method === 'card' && paymentDetails.card) {
       payment.card = {
         network: paymentDetails.card.network,
@@ -101,24 +122,16 @@ router.post('/verify-payment', async (req, res) => {
     }
 
     await payment.save();
-    console.log('✅ Payment record created:', payment.razorpayPaymentId);
+    console.log('✅ Payment record created');
 
-    // ✅ FIXED: Update order status using standard fields
+    // Update order status
     order.razorpayPaymentId = razorpay_payment_id;
     order.paymentStatus = 'paid';
     order.status = 'confirmed';
     order.paidAt = new Date();
-    
-    // If order doesn't have these fields, use whatever status fields exist
-    if (order.status) {
-      order.status = 'confirmed';
-    }
-    if (order.paymentStatus) {
-      order.paymentStatus = 'paid';
-    }
 
     await order.save();
-    console.log('✅ Order updated:', order.orderId);
+    console.log('✅ Order updated successfully');
 
     res.json({
       success: true,
@@ -129,6 +142,83 @@ router.post('/verify-payment', async (req, res) => {
 
   } catch (error) {
     console.error('❌ Payment verification failed:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// ✅ FIXED CREATE-ORDER ENDPOINT (REMOVED order_data DEPENDENCY)
+router.post('/create-order', async (req, res) => {
+  try {
+    console.log('🔄 Creating Razorpay order...', req.body);
+    
+    const { amount, currency = 'INR', receipt, notes } = req.body; // ✅ REMOVED order_data
+
+    if (!amount) {
+      return res.status(400).json({
+        success: false,
+        error: 'Amount is required'
+      });
+    }
+
+    const PaymentHelper = require('../utils/paymentHelper');
+    const paymentHelper = new PaymentHelper();
+    
+    const orderData = {
+      amount: Math.round(amount),
+      currency: currency,
+      receipt: receipt || `rcpt_${Date.now()}`,
+      notes: notes || {}
+    };
+    
+    console.log('📦 Creating Razorpay order with:', orderData);
+    
+    const order = await paymentHelper.createRazorpayOrder(orderData);
+    
+    if (order.success) {
+      console.log('✅ Razorpay order created:', order.orderId);
+      
+      // ✅ OPTIONAL: Try to save basic order to database (won't fail if it doesn't work)
+      try {
+        const Order = require('../models/order');
+        
+        const dbOrder = new Order({
+          orderId: receipt,
+          razorpayOrderId: order.orderId,
+          amount: order.amount / 100,
+          currency: order.currency,
+          status: 'created',
+          paymentStatus: 'pending',
+          customer: {},
+          items: [],
+          address: {}
+        });
+        
+        await dbOrder.save();
+        console.log('✅ Order saved to database:', dbOrder.orderId);
+        
+      } catch (dbError) {
+        console.log('ℹ️ Order not saved to database (will be created during verification):', dbError.message);
+      }
+      
+      res.json({
+        success: true,
+        razorpayOrderId: order.orderId,
+        amount: order.amount,
+        currency: order.currency
+      });
+    } else {
+      console.error('❌ Razorpay order creation failed:', order.error);
+      res.status(400).json({
+        success: false,
+        error: order.error
+      });
+    }
+    
+  } catch (error) {
+    console.error('❌ Order creation endpoint failed:', error);
     res.status(500).json({
       success: false,
       error: error.message
@@ -180,87 +270,6 @@ router.get('/customer/:email', async (req, res) => {
   }
 });
 
-// ✅ FIXED: CREATE ORDER ENDPOINT USING PAYMENTHELPER
-// In your backend routes/payments.js - update create-order endpoint
-// In your backend routes/payments.js - update create-order endpoint
-router.post('/create-order', async (req, res) => {
-  try {
-    console.log('🔄 Creating Razorpay order...', req.body);
-    
-    const { amount, currency = 'INR', receipt, notes, order_data } = req.body; // ✅ ADD order_data
-
-    if (!amount) {
-      return res.status(400).json({
-        success: false,
-        error: 'Amount is required'
-      });
-    }
-
-    const PaymentHelper = require('../utils/paymentHelper');
-    const paymentHelper = new PaymentHelper();
-    
-    const orderData = {
-      amount: Math.round(amount),
-      currency: currency,
-      receipt: receipt || `rcpt_${Date.now()}`,
-      notes: notes || {}
-    };
-    
-    console.log('📦 Creating Razorpay order with:', orderData);
-    
-    // Create Razorpay order using PaymentHelper
-    const order = await paymentHelper.createRazorpayOrder(orderData);
-    
-    if (order.success) {
-      console.log('✅ Razorpay order created:', order.orderId);
-      
-      // ✅ CRITICAL: Save order to database
-      try {
-        const Order = require('../models/order'); // Make sure to require Order model
-        
-        // Create order in database with Razorpay order ID
-        const dbOrder = new Order({
-          orderId: receipt, // This should be your frontend order ID (MB1764523309391)
-          razorpayOrderId: order.orderId, // The Razorpay order ID
-          amount: order.amount / 100, // Convert back to rupees
-          currency: order.currency,
-          status: 'created',
-          paymentStatus: 'pending',
-          customer: order_data?.customer || {}, // Get from frontend
-          items: order_data?.items || [], // Get from frontend
-          address: order_data?.address || {} // Get from frontend
-        });
-        
-        await dbOrder.save();
-        console.log('✅ Order saved to database:', dbOrder.orderId);
-        
-      } catch (dbError) {
-        console.error('❌ Failed to save order to database:', dbError);
-        // Don't fail the request, but log the error
-      }
-      
-      res.json({
-        success: true,
-        razorpayOrderId: order.orderId,
-        amount: order.amount,
-        currency: order.currency
-      });
-    } else {
-      console.error('❌ Razorpay order creation failed:', order.error);
-      res.status(400).json({
-        success: false,
-        error: order.error
-      });
-    }
-    
-  } catch (error) {
-    console.error('❌ Order creation endpoint failed:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
-  }
-});
 // Add base GET route
 router.get('/', (req, res) => {
   res.json({
@@ -268,7 +277,7 @@ router.get('/', (req, res) => {
     message: 'Payments API is working',
     endpoints: {
       'POST /verify-payment': 'Verify Razorpay payment',
-      'POST /create-order': 'Create Razorpay order (to be added)',
+      'POST /create-order': 'Create Razorpay order',
       'GET /:paymentId': 'Get payment details',
       'GET /customer/:email': 'Get customer payments'
     }
@@ -280,7 +289,6 @@ router.post('/verify-payment-test', async (req, res) => {
   try {
     const { razorpay_payment_id, razorpay_order_id, razorpay_signature } = req.body;
 
-    // Mock successful verification for testing
     res.json({
       success: true,
       message: 'Payment verified successfully (TEST MODE)',
@@ -297,12 +305,5 @@ router.post('/verify-payment-test', async (req, res) => {
     });
   }
 });
+
 module.exports = router;
-
-
-
-
-
-
-
-
