@@ -52,12 +52,12 @@ const orderSchema = new mongoose.Schema({
     deliveredAt: { type: Date }
   },
   
-  status: {
-    payment: { 
-      type: String, 
-      enum: ['pending', 'paid', 'failed', 'refunded'], 
-      default: 'pending' 
-    },
+ // TEMPORARY - In your Order model, change status to:
+status: {
+  type: String,
+  enum: ['pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled'],
+  default: 'pending'
+},
     order: { 
       type: String, 
       enum: ['pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled'], 
@@ -104,3 +104,4 @@ orderSchema.index({ 'status.order': 1 });
 orderSchema.index({ createdAt: -1 });
 
 module.exports = mongoose.model('Order', orderSchema);
+
