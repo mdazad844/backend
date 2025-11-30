@@ -27,7 +27,7 @@ class ShippingCalculator {
         minWeight: 0.5,
         maxWeight: 3,
         estimatedDays: 'Next business days' 
-      }
+      },
     };
 
     // ... keep your existing zones and multipliers
@@ -263,6 +263,7 @@ getCustomShippingOptions(weight, state, orderValue = 0) {
 }
 
 module.exports = ShippingCalculator;
+
 
 
 
