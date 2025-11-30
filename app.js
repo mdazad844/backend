@@ -112,4 +112,46 @@ if (process.env.NODE_ENV !== 'test') {
   });
 }
 
+
+
+// Add this to your app.js or main server file - TEMPORARY TEST
+app.get('/test-payment', async (req, res) => {
+  console.log('🧪 SIMPLE PAYMENT TEST STARTED...');
+  
+  try {
+    const PaymentHelper = require('./utils/paymentHelper');
+    const paymentHelper = new PaymentHelper();
+    
+    const paymentId = 'pay_RlzCHJpXLntppF'; // Your payment ID
+    
+    console.log('1. Checking payment status...');
+    const status = await paymentHelper.checkPaymentStatus(paymentId);
+    console.log('📊 Status:', status);
+    
+    // If payment is authorized but not captured, try to capture
+    if (status.status === 'authorized' && !status.captured) {
+      console.log('2. Payment is authorized but not captured');
+      console.log('💸 Attempting capture...');
+      
+      // Convert ₹ amount to paise
+      const amountInPaise = Math.round(status.amount * 100);
+      const captureResult = await paymentHelper.captureAuthorizedPayment(paymentId, amountInPaise);
+      console.log('🔧 Capture Result:', captureResult);
+    }
+    
+    res.json({
+      message: 'Check Railway logs for results!',
+      status: status
+    });
+    
+  } catch (error) {
+    console.log('❌ Test failed:', error);
+    res.json({ error: error.message });
+  }
+});
+
+
+
+
 module.exports = app; // For testing
+
