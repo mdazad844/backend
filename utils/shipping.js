@@ -7,8 +7,8 @@ class ShippingCalculator {
     // Keep your existing fixed rates as fallback
     this.shippingRates = {
       standard: {
-        baseRate: 50,
-        perKg: 25,
+        baseRate: 0,//50
+        perKg: 0,//25
         minWeight: 0.5,
         maxWeight: 10,
         estimatedDays: '4-7 business days'
@@ -244,3 +244,4 @@ class ShippingCalculator {
 }
 
 module.exports = ShippingCalculator;
+
