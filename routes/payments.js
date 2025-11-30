@@ -77,35 +77,39 @@ router.post('/verify-payment', async (req, res) => {
     if (!order) {
       console.log('🔄 Creating new order in database...');
       
-      order = new Order({
-        orderId: order_data?.orderId || order_id,
-        razorpayOrderId: razorpay_order_id,
-        razorpayPaymentId: razorpay_payment_id,
-        amount: paymentDetails.amount / 100,
-        currency: paymentDetails.currency,
-        status: 'confirmed',
-        paymentStatus: 'paid',
-        paymentMethod: order_data?.paymentMethod || 'razorpay',
-        paidAt: new Date(),
-        customer: order_data?.customer || {
-          email: paymentDetails.email || 'customer@example.com',
-          name: 'Customer'
-        },
-        items: order_data?.items || [],
-        pricing: order_data?.pricing || {
-          subtotal: paymentDetails.amount / 100,
-          taxAmount: 0,
-          deliveryCharge: 0,
-          total: paymentDetails.amount / 100
-        },
-        address: order_data?.shippingAddress || {
-          line1: 'Default Address',
-          city: 'Default City',
-          state: 'Default State',
-          pincode: '000000',
-          country: 'India'
-        }
-      });
+      // In your verification endpoint, ensure you're using the right field names
+order = new Order({
+  orderId: order_data?.orderId || order_id,
+  razorpayOrderId: razorpay_order_id,
+  razorpayPaymentId: razorpay_payment_id,
+  
+  customer: {
+    name: order_data?.customer?.name || 'Customer',
+    email: order_data?.customer?.email || 'customer@example.com'
+  },
+  
+  shippingAddress: order_data?.shippingAddress || {
+    line1: 'Default Address',
+    city: 'Default City', 
+    state: 'Default State',
+    pincode: '000000',
+    country: 'India'
+  },
+  
+  items: order_data?.items || [],
+  pricing: order_data?.pricing || {
+    subtotal: paymentDetails.amount / 100,
+    taxAmount: 0,
+    deliveryCharge: 0,
+    total: paymentDetails.amount / 100
+  },
+  
+  paymentMethod: 'razorpay',
+  status: {
+    payment: 'paid',
+    order: 'confirmed'
+  }
+});
       
       console.log('💾 Saving order to database...');
       await order.save();
@@ -321,5 +325,6 @@ router.post('/verify-payment-test', async (req, res) => {
 });
 
 module.exports = router;
+
 
 
