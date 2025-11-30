@@ -6,9 +6,10 @@ class ShippingCalculator {
     
     // Keep your existing fixed rates as fallback
     this.shippingRates = {
-      standard: {
-        baseRate: 50,
-        perKg: 25,
+ 
+     standard: {
+        baseRate: 50, 
+        perKg: 25, 
         minWeight: 0.5,
         maxWeight: 10,
         estimatedDays: '4-7 business days'
@@ -25,8 +26,8 @@ class ShippingCalculator {
         perKg: 60,
         minWeight: 0.5,
         maxWeight: 3,
-        estimatedDays: 'Next business day'
-      }
+        estimatedDays: 'Next business days' 
+      },
     };
 
     // ... keep your existing zones and multipliers
@@ -47,98 +48,118 @@ class ShippingCalculator {
     };
   }
 
-  // ✅ NEW: REAL Shiprocket API Integration
-  async calculateShiprocketRates(deliveryPincode, weight, orderValue = 0) {
+// ✅ FIXED: Correct Shiprocket API call with GET method
+async calculateShiprocketRates(deliveryPincode, weight, orderValue = 0) {
     try {
-      if (!this.shiprocketEnabled) {
-        throw new Error('Shiprocket credentials not configured');
-      }
+        if (!this.shiprocketEnabled) {
+            throw new Error('Shiprocket credentials not configured');
+        }
 
-      console.log('🚀 Calling REAL Shiprocket API...');
-      
-      // 1. Authenticate with Shiprocket
-      const authResponse = await fetch('https://apiv2.shiprocket.in/v1/external/auth/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          email: process.env.SHIPROCKET_EMAIL,
-          password: process.env.SHIPROCKET_PASSWORD
-        })
-      });
+        console.log('🚀 Calling REAL Shiprocket API...');
+        
+        // 1. Authenticate with Shiprocket
+        const authResponse = await fetch('https://apiv2.shiprocket.in/v1/external/auth/login', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                email: process.env.SHIPROCKET_EMAIL,
+                password: process.env.SHIPROCKET_PASSWORD
+            })
+        });
 
-      if (!authResponse.ok) {
-        const errorData = await authResponse.json();
-        throw new Error(`Shiprocket auth failed: ${JSON.stringify(errorData)}`);
-      }
+        if (!authResponse.ok) {
+            const errorData = await authResponse.json();
+            throw new Error(`Shiprocket auth failed: ${JSON.stringify(errorData)}`);
+        }
 
-      const authData = await authResponse.json();
-      const token = authData.token;
+        const authData = await authResponse.json();
+        const token = authData.token;
 
-      // 2. Calculate shipping rates
-      const ratePayload = {
-        pickup_postcode: this.pickupPincode,
-        delivery_postcode: deliveryPincode,
-        weight: weight,
-        length: 15,
-        breadth: 10,
-        height: 5,
-        cod: orderValue > 0 ? 0 : 1 // 0 for prepaid, 1 for COD
-      };
+        // 2. ✅ FIXED: Use GET request with query parameters
+        const params = new URLSearchParams({
+            pickup_postcode: this.pickupPincode,
+            delivery_postcode: deliveryPincode,
+            weight: weight.toString(),
+            cod: orderValue > 0 ? '0' : '1'
+        });
 
-      console.log('📦 Shiprocket rate payload:', ratePayload);
+        console.log('📦 Shiprocket API URL with params:', `https://apiv2.shiprocket.in/v1/external/courier/serviceability?${params}`);
 
-      const rateResponse = await fetch('https://apiv2.shiprocket.in/v1/external/courier/serviceability/', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(ratePayload)
-      });
+        const rateResponse = await fetch(`https://apiv2.shiprocket.in/v1/external/courier/serviceability?${params}`, {
+            method: 'GET', // ✅ CHANGED TO GET
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            }
+        });
 
-      if (!rateResponse.ok) {
-        const errorData = await rateResponse.json();
-        throw new Error(`Shiprocket rates failed: ${JSON.stringify(errorData)}`);
-      }
+        console.log('📊 Shiprocket Rate Response Status:', rateResponse.status);
 
-      const rateData = await rateResponse.json();
-      console.log('✅ Raw Shiprocket response:', rateData);
+        if (!rateResponse.ok) {
+            const errorText = await rateResponse.text();
+            throw new Error(`Shiprocket rates failed: ${rateResponse.status} - ${errorText}`);
+        }
 
-      return this.formatShiprocketOptions(rateData, orderValue);
+        const rateData = await rateResponse.json();
+        console.log('✅ Raw Shiprocket response:', rateData);
+
+        return this.formatShiprocketOptions(rateData, orderValue);
 
     } catch (error) {
-      console.error('❌ Shiprocket API error:', error);
-      throw error; // Re-throw to handle in calling function
+        console.error('❌ Shiprocket API error:', error);
+        throw error;
     }
-  }
+}
 
   // ✅ Format Shiprocket API response
-  formatShiprocketOptions(rateData, orderValue) {
+ // ✅ FIXED: Remove free delivery logic completely
+
+formatShiprocketOptions(rateData, orderValue) {
     if (!rateData.data || !rateData.data.available_courier_companies) {
-      throw new Error('No courier companies available from Shiprocket');
+        throw new Error('No courier companies available from Shiprocket');
     }
 
     const options = rateData.data.available_courier_companies.map(courier => {
-      // Apply free shipping for orders above ₹2000
-      const charge = orderValue > 2000 ? 0 : courier.rate;
+        // ✅ FIXED: Remove free shipping logic - always use actual rates
+        const charge = courier.rate; // Always use the actual rate
+
+
       
-      return {
-        id: `shiprocket_${courier.courier_company_id}`,
-        name: courier.courier_name,
-        charge: Math.round(charge),
-        estimatedDays: courier.estimated_delivery_days || '4-7 days',
-        provider: 'shiprocket',
-        courier: courier.courier_name,
-        freeShipping: orderValue > 2000,
-        rawRate: courier.rate // Keep original rate for reference
-      };
+
+
+
+  
+      
+        
+        // ✅ FIXED: Format estimated days properly
+        let estimatedDays = courier.estimated_delivery_days || '4-7';
+        
+        // Ensure "days" is added if not present
+        if (estimatedDays && !estimatedDays.toLowerCase().includes('day')) {
+            estimatedDays = `${estimatedDays} days`;
+        }
+        
+        return {
+            id: `shiprocket_${courier.courier_company_id}`,
+            name: courier.courier_name,
+            charge: Math.round(charge), // ✅ Always charged amount
+            estimatedDays: estimatedDays, // ✅ Now shows "2 days" instead of "2"
+            provider: 'shiprocket',
+            courier: courier.courier_name,
+
+
+         freeShipping: false, // ✅ Always false - no free delivery
+          
+           
+            rawRate: courier.rate
+        };
     });
 
     // Sort by price
     return options.sort((a, b) => a.charge - b.charge);
-  }
+}
 
   // ✅ UPDATED: Get all shipping options (Shiprocket + Fallback)
   async getAllShippingOptions(weight, state, orderValue = 0, deliveryPincode = null) {
@@ -161,36 +182,34 @@ class ShippingCalculator {
   }
 
   // ✅ Renamed: Your existing custom calculator as fallback
-  getCustomShippingOptions(weight, state, orderValue = 0) {
+  // ✅ FIXED: Remove free shipping from custom options too
+getCustomShippingOptions(weight, state, orderValue = 0) {
     const options = [];
     const services = Object.keys(this.shippingRates);
 
     for (const service of services) {
-      try {
-        const shipping = this.calculateShipping(weight, state, service);
-        
-        // Apply free shipping for orders above ₹2000
-        if (orderValue > 2000 && service === 'standard') {
-          shipping.cost = 0;
-          shipping.freeShipping = true;
+        try {
+            const shipping = this.calculateShipping(weight, state, service);
+            
+            // ✅ REMOVED: Free shipping logic
+            // Always charge the calculated amount
+            
+            options.push({
+                id: `custom_${service}`,
+                name: this.getServiceName(service),
+                provider: 'custom',
+                courier: service,
+                charge: shipping.cost, // ✅ Always charged
+                estimatedDays: shipping.estimatedDays,
+                freeShipping: false // ✅ Always false
+            });
+        } catch (error) {
+            console.warn(`Skipping ${service} shipping: ${error.message}`);
         }
-
-        options.push({
-          id: `custom_${service}`,
-          name: this.getServiceName(service),
-          provider: 'custom',
-          courier: service,
-          charge: shipping.cost,
-          estimatedDays: shipping.estimatedDays,
-          freeShipping: shipping.freeShipping || false
-        });
-      } catch (error) {
-        console.warn(`Skipping ${service} shipping: ${error.message}`);
-      }
     }
 
     return options.sort((a, b) => a.charge - b.charge);
-  }
+}
 
   // ✅ Keep your existing methods
   calculateShipping(weight, state, service = 'standard') {
@@ -244,5 +263,17 @@ class ShippingCalculator {
 }
 
 module.exports = ShippingCalculator;
+
+
+
+
+
+
+
+
+
+
+
+
 
 
