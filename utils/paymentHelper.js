@@ -11,38 +11,39 @@ class PaymentHelper {
   }
 
   // Create Razorpay order
-  async createRazorpayOrder(orderData) {
-    try {
-      const { amount, currency, receipt, notes } = orderData;
+  // In backend/utils/paymentHelper.js - Updated createRazorpayOrder function
 
-      const options = {
-        amount: Math.round(amount), // in paise
-        currency: currency || 'INR',
-        receipt: receipt,
-        notes: notes,
-       
-      };
+async createRazorpayOrder(orderData) {
+  try {
+    const { amount, currency, receipt, notes } = orderData;
 
-      const order = await this.razorpay.orders.create(options);
-      
-      console.log(`✅ Razorpay order created: ${order.id}`);
-      
-      return {
-        success: true,
-        orderId: order.id,
-        amount: order.amount,
-        currency: order.currency
-      };
+    const options = {
+      amount: Math.round(amount), // in paise
+      currency: currency || 'INR',
+      receipt: receipt,
+      notes: notes,
+      payment_capture: 1 // ✅ Set to 1 for automatic capture [citation:7]
+    };
 
-    } catch (error) {
-      console.error('❌ Razorpay order creation failed:', error);
-      
-      return {
-        success: false,
-        error: error.error?.description || error.message
-      };
-    }
+    const order = await this.razorpay.orders.create(options);
+    
+    console.log(`✅ Razorpay order created with AUTO-CAPTURE: ${order.id}`);
+    
+    return {
+      success: true,
+      orderId: order.id,
+      amount: order.amount,
+      currency: order.currency
+    };
+
+  } catch (error) {
+    console.error('❌ Razorpay order creation failed:', error);
+    return {
+      success: false,
+      error: error.error?.description || error.message
+    };
   }
+}
 
   // Verify payment signature
   verifyPaymentSignature(paymentData) {
@@ -266,3 +267,4 @@ class PaymentHelper {
 
 
 module.exports = PaymentHelper;
+
