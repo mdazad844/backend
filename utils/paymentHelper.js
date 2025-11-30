@@ -1,6 +1,6 @@
 // Payment Utility Functions
 const Razorpay = require('razorpay');
-const Payment = require('../models/Payment');
+//const Payment = require('../models/Payment');
 
 class PaymentHelper {
   constructor() {
@@ -209,7 +209,7 @@ async createRazorpayOrder(orderData) {
   }
 
   // Get payment analytics
-  async getPaymentAnalytics(timeframe = '30d') {
+/*  async getPaymentAnalytics(timeframe = '30d') {
     const dateRange = this.getDateRange(timeframe);
 
     const paymentStats = await Payment.aggregate([
@@ -249,7 +249,7 @@ async createRazorpayOrder(orderData) {
       timeframe
     };
   }
-
+*/
   // Helper function for date ranges
   getDateRange(timeframe) {
     const end = new Date();
@@ -275,6 +275,7 @@ async createRazorpayOrder(orderData) {
 
 
 module.exports = PaymentHelper;
+
 
 
 
