@@ -14,7 +14,7 @@ const orderSchema = new mongoose.Schema({
   
   shippingAddress: {
     line1: { type: String, required: true },
-    line2: { type: String },
+    line2: { type: String, default: '' },
     city: { type: String, required: true },
     state: { type: String, required: true },
     pincode: { type: String, required: true },
@@ -22,30 +22,31 @@ const orderSchema = new mongoose.Schema({
   },
   
   items: [{
-    productId: { type: String, required: true },
+    _id: { type: mongoose.Schema.Types.Mixed }, // ✅ FIXED: Accept both ObjectId and strings
+    productId: { type: mongoose.Schema.Types.Mixed, required: true }, // ✅ FIXED: Accept numbers and strings
     name: { type: String, required: true },
     price: { type: Number, required: true },
     quantity: { type: Number, required: true },
-    size: { type: String },
-    color: { type: String },
-    image: { type: String }
+    size: { type: String, default: '' },
+    color: { type: String, default: '' },
+    image: { type: String, default: '' }
   }],
   
   pricing: {
-    subtotal: { type: Number, required: true },
-    taxAmount: { type: Number, required: true },
+    subtotal: { type: Number, required: true, default: 0 },
+    taxAmount: { type: Number, required: true, default: 0 },
     taxDetails: {
       gst5: { type: Number, default: 0 },
       gst18: { type: Number, default: 0 }
     },
-    deliveryCharge: { type: Number, required: true },
-    total: { type: Number, required: true }
+    deliveryCharge: { type: Number, required: true, default: 0 },
+    total: { type: Number, required: true, default: 0 }
   },
   
   shipping: {
-    method: { type: String },
-    provider: { type: String },
-    trackingNumber: { type: String },
+    method: { type: String, default: 'standard' },
+    provider: { type: String, default: '' },
+    trackingNumber: { type: String, default: '' },
     estimatedDelivery: { type: Date },
     shippedAt: { type: Date },
     deliveredAt: { type: Date }
@@ -67,12 +68,13 @@ const orderSchema = new mongoose.Schema({
   paymentMethod: { 
     type: String, 
     enum: ['razorpay', 'cod'], 
-    required: true 
+    required: true,
+    default: 'razorpay'
   },
   
   notes: {
-    customer: { type: String },
-    admin: { type: String }
+    customer: { type: String, default: '' },
+    admin: { type: String, default: '' }
   },
   
   timeline: [{
@@ -94,5 +96,11 @@ orderSchema.methods.addTimelineEvent = function(status, description) {
   });
 };
 
+// Indexes for better performance
+orderSchema.index({ orderId: 1 });
+orderSchema.index({ 'customer.email': 1 });
+orderSchema.index({ 'status.payment': 1 });
+orderSchema.index({ 'status.order': 1 });
+orderSchema.index({ createdAt: -1 });
 
-module.exports = mongoose.model('order', orderSchema);
+module.exports = mongoose.model('Order', orderSchema);
