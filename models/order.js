@@ -6,10 +6,10 @@ const orderSchema = new mongoose.Schema({
   razorpayPaymentId: { type: String }, // Razorpay's payment ID
   
   customer: {
-    userId: { type: String },
+    userId: { type: String, default: '' },
     name: { type: String, required: true },
     email: { type: String, required: true },
-    phone: { type: String }
+    phone: { type: String, default: '' }
   },
   
   shippingAddress: {
@@ -22,8 +22,8 @@ const orderSchema = new mongoose.Schema({
   },
   
   items: [{
-    _id: { type: mongoose.Schema.Types.Mixed }, // ✅ FIXED: Accept both ObjectId and strings
-    productId: { type: mongoose.Schema.Types.Mixed, required: true }, // ✅ FIXED: Accept numbers and strings
+    _id: { type: mongoose.Schema.Types.Mixed }, // ✅ Accept both ObjectId and strings
+    productId: { type: mongoose.Schema.Types.Mixed, required: true }, // ✅ Accept numbers and strings
     name: { type: String, required: true },
     price: { type: Number, required: true },
     quantity: { type: Number, required: true },
@@ -52,17 +52,18 @@ const orderSchema = new mongoose.Schema({
     deliveredAt: { type: Date }
   },
   
- // TEMPORARY - In your Order model, change status to:
-status: {
-  type: String,
-  enum: ['pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled'],
-  default: 'pending'
-},
-    order: { 
-      type: String, 
-      enum: ['pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled'], 
-      default: 'pending' 
-    }
+  // ✅ FIXED: Simple string status for now to resolve the validation error
+  status: {
+    type: String,
+    enum: ['pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled'],
+    default: 'pending'
+  },
+  
+  // ✅ FIXED: Separate payment status field
+  paymentStatus: {
+    type: String,
+    enum: ['pending', 'paid', 'failed', 'refunded'],
+    default: 'pending'
   },
   
   paymentMethod: { 
@@ -81,7 +82,10 @@ status: {
     status: { type: String, required: true },
     description: { type: String, required: true },
     timestamp: { type: Date, default: Date.now }
-  }]
+  }],
+  
+  // ✅ Added payment date field
+  paidAt: { type: Date }
   
 }, { 
   timestamps: true 
@@ -99,9 +103,8 @@ orderSchema.methods.addTimelineEvent = function(status, description) {
 // Indexes for better performance
 orderSchema.index({ orderId: 1 });
 orderSchema.index({ 'customer.email': 1 });
-orderSchema.index({ 'status.payment': 1 });
-orderSchema.index({ 'status.order': 1 });
+orderSchema.index({ status: 1 });
+orderSchema.index({ paymentStatus: 1 });
 orderSchema.index({ createdAt: -1 });
 
 module.exports = mongoose.model('Order', orderSchema);
-
