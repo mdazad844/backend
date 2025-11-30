@@ -130,7 +130,7 @@ formatShiprocketOptions(rateData, orderValue) {
 
 const options = rateData.data.available_courier_companies.map(courier => {
         // Apply free shipping for orders above ₹2000
-        const charge = orderValue < 100 ? 0 : courier.rate;
+        const charge = orderValue >= 1 ? 0 : courier.rate;
 
   
       
@@ -152,7 +152,7 @@ const options = rateData.data.available_courier_companies.map(courier => {
             courier: courier.courier_name,
 
 
-          freeShipping: orderValue < 100,
+          freeShipping: orderValue >= 1,
           
            
             rawRate: courier.rate
@@ -265,6 +265,7 @@ getCustomShippingOptions(weight, state, orderValue = 0) {
 }
 
 module.exports = ShippingCalculator;
+
 
 
 
