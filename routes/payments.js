@@ -182,11 +182,12 @@ router.get('/customer/:email', async (req, res) => {
 
 // ✅ FIXED: CREATE ORDER ENDPOINT USING PAYMENTHELPER
 // In your backend routes/payments.js - update create-order endpoint
+// REVERT TO ORIGINAL WORKING VERSION
 router.post('/create-order', async (req, res) => {
   try {
     console.log('🔄 Creating Razorpay order...', req.body);
     
-    const { amount, currency = 'INR', receipt, notes, order_data } = req.body; // ✅ ADD order_data
+    const { amount, currency = 'INR', receipt, notes } = req.body; // ✅ REMOVE order_data
 
     if (!amount) {
       return res.status(400).json({
@@ -213,31 +214,8 @@ router.post('/create-order', async (req, res) => {
     if (order.success) {
       console.log('✅ Razorpay order created:', order.orderId);
       
-      // ✅ CRITICAL: Save order to database
-      try {
-        const Order = require('../models/order'); // Make sure to require Order model
-        
-        // Create order in database with Razorpay order ID
-        const dbOrder = new Order({
-          orderId: receipt, // This should be your frontend order ID (MB1764523309391)
-          razorpayOrderId: order.orderId, // The Razorpay order ID
-          amount: order.amount / 100, // Convert back to rupees
-          currency: order.currency,
-          status: 'created',
-          paymentStatus: 'pending',
-          customer: order_data?.customer || {}, // Get from frontend
-          items: order_data?.items || [], // Get from frontend
-          address: order_data?.address || {} // Get from frontend
-        });
-        
-        await dbOrder.save();
-        console.log('✅ Order saved to database:', dbOrder.orderId);
-        
-      } catch (dbError) {
-        console.error('❌ Failed to save order to database:', dbError);
-        // Don't fail the request, but log the error
-      }
-      
+      // ✅ REMOVE the database order saving for now
+      // We'll handle order saving differently
       res.json({
         success: true,
         razorpayOrderId: order.orderId,
@@ -297,6 +275,7 @@ router.post('/verify-payment-test', async (req, res) => {
   }
 });
 module.exports = router;
+
 
 
 
