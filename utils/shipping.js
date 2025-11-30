@@ -123,6 +123,16 @@ formatShiprocketOptions(rateData, orderValue) {
     const options = rateData.data.available_courier_companies.map(courier => {
         // ✅ FIXED: Remove free shipping logic - always use actual rates
         const charge = courier.rate; // Always use the actual rate
+
+
+      
+
+const options = rateData.data.available_courier_companies.map(courier => {
+        // Apply free shipping for orders above ₹2000
+        const charge = orderValue < 100 ? 0 : courier.rate;
+
+  
+      
         
         // ✅ FIXED: Format estimated days properly
         let estimatedDays = courier.estimated_delivery_days || '4-7';
@@ -139,7 +149,11 @@ formatShiprocketOptions(rateData, orderValue) {
             estimatedDays: estimatedDays, // ✅ Now shows "2 days" instead of "2"
             provider: 'shiprocket',
             courier: courier.courier_name,
-            freeShipping: false, // ✅ Always false - no free delivery
+
+
+          freeShipping: orderValue < 100,
+          
+           
             rawRate: courier.rate
         };
     });
@@ -250,6 +264,7 @@ getCustomShippingOptions(weight, state, orderValue = 0) {
 }
 
 module.exports = ShippingCalculator;
+
 
 
 
