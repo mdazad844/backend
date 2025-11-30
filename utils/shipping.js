@@ -8,8 +8,8 @@ class ShippingCalculator {
     this.shippingRates = {
  
      standard: {
-        baseRate: 1, //50
-        perKg: 1, //25
+        baseRate: 50, 
+        perKg: 25, 
         minWeight: 0.5,
         maxWeight: 10,
         estimatedDays: '4-7 business days'
@@ -128,9 +128,7 @@ formatShiprocketOptions(rateData, orderValue) {
 
       
 
-const options = rateData.data.available_courier_companies.map(courier => {
-        // Apply free shipping for orders above ₹2000
-        const charge = orderValue >= 1 ? 0 : courier.rate;
+
 
   
       
@@ -152,7 +150,7 @@ const options = rateData.data.available_courier_companies.map(courier => {
             courier: courier.courier_name,
 
 
-          freeShipping: orderValue >= 1,
+         freeShipping: false, // ✅ Always false - no free delivery
           
            
             rawRate: courier.rate
@@ -265,6 +263,7 @@ getCustomShippingOptions(weight, state, orderValue = 0) {
 }
 
 module.exports = ShippingCalculator;
+
 
 
 
