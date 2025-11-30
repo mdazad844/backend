@@ -114,38 +114,44 @@ if (process.env.NODE_ENV !== 'test') {
 
 
 
-// Add this to your app.js or main server file - TEMPORARY TEST
+// Replace your /test-payment route with this SIMPLE version
 app.get('/test-payment', async (req, res) => {
-  console.log('🧪 SIMPLE PAYMENT TEST STARTED...');
+  console.log('🧪 SIMPLE TEST STARTED');
   
   try {
-    const PaymentHelper = require('./utils/paymentHelper');
-    const paymentHelper = new PaymentHelper();
-    
-    const paymentId = 'pay_RlzCHJpXLntppF'; // Your payment ID
-    
-    console.log('1. Checking payment status...');
-    const status = await paymentHelper.checkPaymentStatus(paymentId);
-    console.log('📊 Status:', status);
-    
-    // If payment is authorized but not captured, try to capture
-    if (status.status === 'authorized' && !status.captured) {
-      console.log('2. Payment is authorized but not captured');
-      console.log('💸 Attempting capture...');
-      
-      // Convert ₹ amount to paise
-      const amountInPaise = Math.round(status.amount * 100);
-      const captureResult = await paymentHelper.captureAuthorizedPayment(paymentId, amountInPaise);
-      console.log('🔧 Capture Result:', captureResult);
-    }
-    
-    res.json({
-      message: 'Check Railway logs for results!',
-      status: status
+    const Razorpay = require('razorpay');
+    const razorpay = new Razorpay({
+      key_id: process.env.RAZORPAY_KEY_ID,
+      key_secret: process.env.RAZORPAY_KEY_SECRET
     });
+
+    const paymentId = 'pay_RlzCHJpXLntppF';
+    const payment = await razorpay.payments.fetch(paymentId);
     
+    console.log('📊 Payment Status:', {
+      status: payment.status,
+      captured: payment.captured,
+      amount: payment.amount,
+      order_id: payment.order_id
+    });
+
+    let captureResult = null;
+    if (payment.status === 'authorized' && !payment.captured) {
+      console.log('💸 Attempting capture...');
+      captureResult = await razorpay.payments.capture(paymentId, payment.amount);
+      console.log('✅ Capture result:', captureResult.id);
+    }
+
+    res.json({
+      status: payment.status,
+      captured: payment.captured,
+      amount: payment.amount,
+      order_id: payment.order_id,
+      capture_attempt: captureResult ? 'success' : 'not needed'
+    });
+
   } catch (error) {
-    console.log('❌ Test failed:', error);
+    console.log('❌ Error:', error.message);
     res.json({ error: error.message });
   }
 });
@@ -154,4 +160,5 @@ app.get('/test-payment', async (req, res) => {
 
 
 module.exports = app; // For testing
+
 
