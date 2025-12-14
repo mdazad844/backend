@@ -13,31 +13,81 @@ class PaymentHelper {
   // Create Razorpay order
   // In backend/utils/paymentHelper.js - Updated createRazorpayOrder function
 
+// In backend/utils/paymentHelper.js
+
 async createRazorpayOrder(orderData) {
   try {
-    const { amount, currency, receipt, notes } = orderData;
+    const { items, deliveryCharge = 0, receipt, notes } = orderData;
+
+    // Calculate amounts with rounding
+    const subtotal = items.reduce((sum, item) => 
+      sum + (item.price * item.quantity), 0);
+    
+    const taxableValue = subtotal + deliveryCharge;
+    const gstAmount = Math.round(taxableValue * 0.05);
+    const total = subtotal + deliveryCharge + gstAmount;
+    
+    const amountInPaise = Math.round(total * 100);
+
+    // Debug logging
+    console.log('🔍 RAZORPAY ORDER CALCULATION:');
+    console.log('Subtotal:', subtotal);
+    console.log('Delivery Charge:', deliveryCharge);
+    console.log('Taxable Value:', taxableValue);
+    console.log('GST (5%):', gstAmount);
+    console.log('Total (₹):', total);
+    console.log('Total in paise:', amountInPaise);
+    console.log('Rounded paise:', Math.round(total * 100));
 
     const options = {
-      amount: Math.round(amount), // in paise
-      currency: currency || 'INR',
-      receipt: receipt,
-      notes: notes,
-      payment_capture: 1 // ✅ Set to 1 for automatic capture [citation:7]
+      amount: amountInPaise, // Must be integer
+      currency: 'INR',
+      receipt: receipt || `receipt_${Date.now()}`,
+      notes: {
+        ...notes,
+        subtotal,
+        deliveryCharge,
+        gstAmount,
+        itemsCount: items.length
+      },
+      payment_capture: 1
     };
+
+    console.log('📤 Sending to Razorpay:', options);
 
     const order = await this.razorpay.orders.create(options);
     
-    console.log(`✅ Razorpay order created with AUTO-CAPTURE: ${order.id}`);
+    console.log(`✅ Razorpay order created: ${order.id}`);
+    console.log(`Razorpay response amount: ${order.amount} paise`);
     
+    // Verify amount matches
+    if (order.amount !== amountInPaise) {
+      console.warn(`⚠️ Amount mismatch! Sent: ${amountInPaise}, Received: ${order.amount}`);
+    }
+
     return {
       success: true,
       orderId: order.id,
       amount: order.amount,
-      currency: order.currency
+      currency: order.currency,
+      receipt: order.receipt,
+      breakdown: {
+        subtotal,
+        deliveryCharge,
+        gstAmount,
+        total: total,
+        totalInPaise: amountInPaise
+      }
     };
 
   } catch (error) {
     console.error('❌ Razorpay order creation failed:', error);
+    
+    // Detailed error logging
+    if (error.error) {
+      console.error('Razorpay error details:', error.error);
+    }
+    
     return {
       success: false,
       error: error.error?.description || error.message
@@ -316,6 +366,7 @@ generateInvoice(order, payment) {
 
 
 module.exports = PaymentHelper;
+
 
 
 
