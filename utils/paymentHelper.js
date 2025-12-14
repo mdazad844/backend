@@ -13,81 +13,31 @@ class PaymentHelper {
   // Create Razorpay order
   // In backend/utils/paymentHelper.js - Updated createRazorpayOrder function
 
-// In backend/utils/paymentHelper.js
-
 async createRazorpayOrder(orderData) {
   try {
-    const { items, deliveryCharge = 0, receipt, notes } = orderData;
-
-    // Calculate amounts with rounding
-    const subtotal = items.reduce((sum, item) => 
-      sum + (item.price * item.quantity), 0);
-    
-    const taxableValue = subtotal + deliveryCharge;
-    const gstAmount = Math.round(taxableValue * 0.05);
-    const total = subtotal + deliveryCharge + gstAmount;
-    
-    const amountInPaise = Math.round(total * 100);
-
-    // Debug logging
-    console.log('🔍 RAZORPAY ORDER CALCULATION:');
-    console.log('Subtotal:', subtotal);
-    console.log('Delivery Charge:', deliveryCharge);
-    console.log('Taxable Value:', taxableValue);
-    console.log('GST (5%):', gstAmount);
-    console.log('Total (₹):', total);
-    console.log('Total in paise:', amountInPaise);
-    console.log('Rounded paise:', Math.round(total * 100));
+    const { amount, currency, receipt, notes } = orderData;
 
     const options = {
-      amount: amountInPaise, // Must be integer
-      currency: 'INR',
-      receipt: receipt || `receipt_${Date.now()}`,
-      notes: {
-        ...notes,
-        subtotal,
-        deliveryCharge,
-        gstAmount,
-        itemsCount: items.length
-      },
-      payment_capture: 1
+      amount: Math.round(amount), // in paise
+      currency: currency || 'INR',
+      receipt: receipt,
+      notes: notes,
+      payment_capture: 1 // ✅ Set to 1 for automatic capture [citation:7]
     };
-
-    console.log('📤 Sending to Razorpay:', options);
 
     const order = await this.razorpay.orders.create(options);
     
-    console.log(`✅ Razorpay order created: ${order.id}`);
-    console.log(`Razorpay response amount: ${order.amount} paise`);
+    console.log(`✅ Razorpay order created with AUTO-CAPTURE: ${order.id}`);
     
-    // Verify amount matches
-    if (order.amount !== amountInPaise) {
-      console.warn(`⚠️ Amount mismatch! Sent: ${amountInPaise}, Received: ${order.amount}`);
-    }
-
     return {
       success: true,
       orderId: order.id,
       amount: order.amount,
-      currency: order.currency,
-      receipt: order.receipt,
-      breakdown: {
-        subtotal,
-        deliveryCharge,
-        gstAmount,
-        total: total,
-        totalInPaise: amountInPaise
-      }
+      currency: order.currency
     };
 
   } catch (error) {
     console.error('❌ Razorpay order creation failed:', error);
-    
-    // Detailed error logging
-    if (error.error) {
-      console.error('Razorpay error details:', error.error);
-    }
-    
     return {
       success: false,
       error: error.error?.description || error.message
@@ -184,98 +134,57 @@ async createRazorpayOrder(orderData) {
   }
 
   // Calculate GST for items
-  // Updated calculateGST function in backend/utils/paymentHelper.js
+  calculateGST(items) {
+    const gstSlabs = {
+      low: { threshold: 2500, rate: 0.05 },  // 5% GST for ≤ ₹2,500
+      high: { threshold: 2501, rate: 0.18 }  // 18% GST for > ₹2,500
+    };
 
-// Updated calculateGST function with only 5% GST
-calculateGST(items, deliveryCharge = 0) {
-  // Only 5% GST rate
-  const GST_RATE = 0.05; // 5%
-  
-  // Calculate total value of items
-  const itemsTotal = items.reduce((sum, item) => 
-    sum + (item.price * item.quantity), 0
-  );
-  
-  // Total taxable value (items + delivery charge)
-  const taxableValue = itemsTotal + deliveryCharge;
-  
-  // Calculate 5% GST
-  const gstAmount = taxableValue * GST_RATE;
+    let totalTax = 0;
+    let tax5 = 0;
+    let tax18 = 0;
 
-  return {
-    totalTax: Math.round(gstAmount),
-    taxAmount: Math.round(gstAmount),
-    gstRate: GST_RATE,
-    taxableValue: Math.round(taxableValue),
-    itemsTotal: Math.round(itemsTotal),
-    deliveryCharge: Math.round(deliveryCharge),
-    gstPercentage: "5%"
-  };
-}
+    items.forEach(item => {
+      const itemTotal = item.price * item.quantity;
+      const taxRate = item.price <= gstSlabs.low.threshold ? 
+        gstSlabs.low.rate : gstSlabs.high.rate;
+      
+      const itemTax = itemTotal * taxRate;
+      totalTax += itemTax;
 
-// Updated generateOrderSummary function
-generateOrderSummary(order) {
-  const subtotal = order.items.reduce((sum, item) => 
-    sum + (item.price * item.quantity), 0
-  );
+      if (taxRate === gstSlabs.low.rate) {
+        tax5 += itemTax;
+      } else {
+        tax18 += itemTax;
+      }
+    });
 
-  const deliveryCharge = order.deliveryCharge || 0;
-  
-  // Calculate 5% GST on (subtotal + delivery charge)
-  const taxDetails = this.calculateGST(order.items, deliveryCharge);
-  
-  // Total = Subtotal + Delivery + 5% GST
-  const total = subtotal + deliveryCharge + taxDetails.totalTax;
+    return {
+      totalTax: Math.round(totalTax),
+      tax5: Math.round(tax5),
+      tax18: Math.round(tax18),
+      hasMixedRates: tax5 > 0 && tax18 > 0
+    };
+  }
 
-  return {
-    subtotal: Math.round(subtotal),
-    taxAmount: taxDetails.totalTax,
-    taxDetails,
-    deliveryCharge: Math.round(deliveryCharge),
-    total: Math.round(total),
-    currency: 'INR',
-    breakdown: {
-      items: subtotal,
-      delivery: deliveryCharge,
-      taxableValue: subtotal + deliveryCharge,
-      gst5: taxDetails.totalTax,
-      total: total
-    },
-    summaryText: `Items: ₹${Math.round(subtotal)} + Delivery: ₹${Math.round(deliveryCharge)} + GST (5%): ₹${taxDetails.totalTax} = Total: ₹${Math.round(total)}`
-  };
-}
+  // Generate order summary for payment
+  generateOrderSummary(order) {
+    const subtotal = order.items.reduce((sum, item) => 
+      sum + (item.price * item.quantity), 0
+    );
 
-// You can also add a helper function for invoice generation
-generateInvoice(order, payment) {
-  const summary = this.generateOrderSummary(order);
-  
-  return {
-    invoiceNumber: `INV-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-    date: new Date().toLocaleDateString('en-IN'),
-    items: order.items.map(item => ({
-      name: item.name,
-      quantity: item.quantity,
-      price: item.price,
-      total: item.price * item.quantity
-    })),
-    taxDetails: {
-      taxableValue: summary.taxDetails.taxableValue,
-      gstRate: "5%",
-      gstAmount: summary.taxAmount,
-      cgst: Math.round(summary.taxAmount / 2), // Assuming 2.5% CGST and 2.5% SGST
-      sgst: Math.round(summary.taxAmount / 2),
-      igst: 0 // 0 for intra-state
-    },
-    paymentDetails: {
-      razorpayOrderId: payment?.razorpayOrderId,
-      razorpayPaymentId: payment?.razorpayPaymentId,
-      paymentMethod: payment?.method,
-      paymentStatus: payment?.status
-    },
-    total: summary.total,
-    summary: summary.breakdown
-  };
-}
+    const taxDetails = this.calculateGST(order.items);
+    const total = subtotal + taxDetails.totalTax + (order.deliveryCharge || 0);
+
+    return {
+      subtotal: Math.round(subtotal),
+      taxAmount: taxDetails.totalTax,
+      taxDetails,
+      deliveryCharge: order.deliveryCharge || 0,
+      total: Math.round(total),
+      currency: 'INR'
+    };
+  }
 
   // Validate payment data
   validatePaymentData(paymentData) {
@@ -366,10 +275,6 @@ generateInvoice(order, payment) {
 
 
 module.exports = PaymentHelper;
-
-
-
-
 
 
 
