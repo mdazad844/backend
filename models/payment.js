@@ -1,3 +1,4 @@
+// backend/models/payment.js - UPDATED SCHEMA
 const mongoose = require('mongoose');
 
 const paymentSchema = new mongoose.Schema({
@@ -18,8 +19,16 @@ const paymentSchema = new mongoose.Schema({
   // Order Reference
   orderId: { 
     type: String, 
-    required: true, 
-    ref: 'Order' 
+    required: true,
+    unique: true
+  },
+  
+  // Order Number (Human readable)
+  orderNumber: {
+    type: String,
+    default: function() {
+      return `ORD-${Date.now()}-${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
+    }
   },
   
   // Payment Details
@@ -33,40 +42,110 @@ const paymentSchema = new mongoose.Schema({
   },
   method: { 
     type: String 
-  }, // card, upi, netbanking, wallet
+  },
   bank: { 
     type: String 
-  }, // bank name if applicable
-  wallet: { 
-    type: String 
-  }, // wallet name if applicable
-  vpa: { 
-    type: String 
-  }, // UPI ID if applicable
-  
-  // Card Details (for tracking, not storing sensitive data)
-  card: {
-    network: { type: String }, // visa, mastercard, rupay
-    type: { type: String }, // credit, debit
-    issuer: { type: String }, // bank name
-    last4: { type: String } // last 4 digits only
   },
   
-  // Payment Status
+  // Customer Information
+  customer: {
+    userId: { type: String },
+    name: { type: String, required: true },
+    email: { type: String, required: true },
+    phone: { type: String }
+  },
+  
+  // Shipping Address
+  shippingAddress: {
+    name: { type: String },
+    line1: { type: String, required: true },
+    line2: { type: String },
+    city: { type: String, required: true },
+    state: { type: String, required: true },
+    pincode: { type: String, required: true },
+    country: { type: String, default: 'India' },
+    landmark: { type: String },
+    phone: { type: String }
+  },
+  
+  // Order Items (Complete details)
+  items: [{
+    productId: { type: String, required: true },
+    name: { type: String, required: true },
+    price: { type: Number, required: true },
+    quantity: { type: Number, required: true, min: 1 },
+    size: { type: String },
+    color: { type: String },
+    image: { type: String },
+    category: { type: String }
+  }],
+  
+  // Financial Breakdown
+  financials: {
+    subtotal: { type: Number, required: true },
+    deliveryCharge: { type: Number, default: 0 },
+    taxAmount: { type: Number, required: true }, // 5% GST
+    grandTotal: { type: Number, required: true } // Total including GST
+  },
+  
+  // Order Status
   status: { 
     type: String, 
     enum: [
-      'created', 
-      'authorized', 
-      'captured', 
-      'refunded', 
-      'failed', 
-      'pending'
+      'pending',       // Order created, payment pending
+      'confirmed',     // Payment successful
+      'processing',    // Order being processed
+      'shipped',       // Order shipped
+      'delivered',     // Order delivered
+      'cancelled',     // Order cancelled
+      'refunded'       // Payment refunded
     ], 
-    default: 'created' 
+    default: 'pending' 
   },
   
-  // Refund Information
+  // Payment Status
+  paymentStatus: {
+    type: String,
+    enum: ['pending', 'paid', 'failed', 'refunded'],
+    default: 'pending'
+  },
+  
+  // Fulfillment Tracking
+  fulfillment: {
+    status: {
+      type: String,
+      enum: ['pending', 'processing', 'shipped', 'delivered', 'cancelled'],
+      default: 'pending'
+    },
+    trackingNumber: { type: String },
+    carrier: { type: String },
+    shippedDate: { type: Date },
+    deliveredDate: { type: Date }
+  },
+  
+  // Delivery Information
+  delivery: {
+    method: { type: String, default: 'Standard Delivery' },
+    estimatedDelivery: { type: Date },
+    actualDelivery: { type: Date }
+  },
+  
+  // Customer Notes
+  notes: {
+    customerNotes: { type: String },
+    internalNotes: { type: String }
+  },
+  
+  // Timestamps
+  orderDate: { 
+    type: Date, 
+    default: Date.now 
+  },
+  paymentDate: { 
+    type: Date 
+  },
+  
+  // Refunds (if any)
   refunds: [{
     refundId: { type: String },
     amount: { type: Number },
@@ -77,103 +156,54 @@ const paymentSchema = new mongoose.Schema({
     },
     processedAt: { type: Date },
     createdAt: { type: Date, default: Date.now }
-  }],
-  
-  // Customer Information
-  customer: {
-    email: { type: String, required: true },
-    phone: { type: String },
-    name: { type: String }
-  },
-  
-  // Timestamps
-  createdAt: { 
-    type: Date, 
-    default: Date.now 
-  },
-  capturedAt: { 
-    type: Date 
-  },
-  
-  // Error Information (if payment failed)
-  error: {
-    code: { type: String },
-    description: { type: String },
-    source: { type: String },
-    step: { type: String },
-    reason: { type: String }
-  },
-  
-  // Metadata
-  notes: {
-    order_items: { type: String },
-    customer_notes: { type: String },
-    internal_notes: { type: String }
-  },
-  
-  // Fraud Detection
-  risk: {
-    score: { type: Number, default: 0 },
-    flagged: { type: Boolean, default: false },
-    reasons: [{ type: String }]
-  }
+  }]
 }, {
   timestamps: true
 });
 
-// Index for faster queries
+// Indexes for faster queries
 paymentSchema.index({ razorpayPaymentId: 1 });
 paymentSchema.index({ orderId: 1 });
-paymentSchema.index({ createdAt: -1 });
 paymentSchema.index({ 'customer.email': 1 });
 paymentSchema.index({ status: 1 });
-
-// Static method to find by Razorpay payment ID
-paymentSchema.statics.findByRazorpayId = function(paymentId) {
-  return this.findOne({ razorpayPaymentId: paymentId });
-};
-
-// Static method to get payments by customer email
-paymentSchema.statics.findByCustomerEmail = function(email) {
-  return this.find({ 'customer.email': email }).sort({ createdAt: -1 });
-};
-
-// Instance method to check if payment is successful
-paymentSchema.methods.isSuccessful = function() {
-  return this.status === 'captured';
-};
-
-// Instance method to check if payment can be refunded
-paymentSchema.methods.canRefund = function() {
-  return this.status === 'captured' && this.refunds.length === 0;
-};
-
-// Instance method to calculate refundable amount
-paymentSchema.methods.getRefundableAmount = function() {
-  const totalRefunded = this.refunds.reduce((sum, refund) => sum + refund.amount, 0);
-  return this.amount - totalRefunded;
-};
-
-// Instance method to add refund
-paymentSchema.methods.addRefund = function(refundData) {
-  this.refunds.push(refundData);
-  if (refundData.amount === this.amount) {
-    this.status = 'refunded';
-  }
-  return this.save();
-};
+paymentSchema.index({ createdAt: -1 });
+paymentSchema.index({ orderNumber: 1 });
 
 // Virtual for amount in rupees (for display)
 paymentSchema.virtual('amountInRupees').get(function() {
   return this.amount / 100;
 });
 
-// Transform output to include virtuals
+// Virtual for financials in rupees
+paymentSchema.virtual('financialsInRupees').get(function() {
+  if (!this.financials) return null;
+  return {
+    subtotal: this.financials.subtotal / 100,
+    deliveryCharge: this.financials.deliveryCharge / 100,
+    taxAmount: this.financials.taxAmount / 100,
+    grandTotal: this.financials.grandTotal / 100
+  };
+});
+
+// Static method to find by customer email
+paymentSchema.statics.findByCustomerEmail = function(email) {
+  return this.find({ 'customer.email': email })
+    .sort({ createdAt: -1 })
+    .select('-razorpaySignature -__v');
+};
+
+// Instance method to check if payment is successful
+paymentSchema.methods.isSuccessful = function() {
+  return this.paymentStatus === 'paid';
+};
+
+// Transform output
 paymentSchema.set('toJSON', {
   virtuals: true,
   transform: function(doc, ret) {
     delete ret._id;
     delete ret.__v;
+    delete ret.razorpaySignature;
     return ret;
   }
 });
