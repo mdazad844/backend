@@ -134,57 +134,95 @@ async createRazorpayOrder(orderData) {
   }
 
   // Calculate GST for items
-  calculateGST(items) {
-    const gstSlabs = {
-      low: { threshold: 2500, rate: 0.05 },  // 5% GST for ≤ ₹2,500
-      high: { threshold: 2501, rate: 0.18 }  // 18% GST for > ₹2,500
-    };
+  // Updated calculateGST function in backend/utils/paymentHelper.js
 
-    let totalTax = 0;
-    let tax5 = 0;
-    let tax18 = 0;
+calculateGST(items, deliveryCharge = 0) {
+  // GST slabs as per Indian tax rules
+  const gstSlabs = {
+    low: { threshold: 2500, rate: 0.05 },  // 5% GST for MRP ≤ ₹2,500
+    high: { threshold: 2501, rate: 0.18 }  // 18% GST for MRP > ₹2,500
+  };
 
-    items.forEach(item => {
-      const itemTotal = item.price * item.quantity;
-      const taxRate = item.price <= gstSlabs.low.threshold ? 
-        gstSlabs.low.rate : gstSlabs.high.rate;
-      
-      const itemTax = itemTotal * taxRate;
-      totalTax += itemTax;
+  let totalTax = 0;
+  let tax5 = 0;
+  let tax18 = 0;
+  let taxableValueFor5Percent = 0;
+  let taxableValueFor18Percent = 0;
 
-      if (taxRate === gstSlabs.low.rate) {
-        tax5 += itemTax;
-      } else {
-        tax18 += itemTax;
-      }
-    });
+  // Calculate tax for each item
+  items.forEach(item => {
+    const itemTotal = item.price * item.quantity;
+    
+    // Determine tax rate based on individual item MRP
+    const taxRate = item.price <= gstSlabs.low.threshold ? 
+      gstSlabs.low.rate : gstSlabs.high.rate;
+    
+    const itemTax = itemTotal * taxRate;
+    totalTax += itemTax;
 
-    return {
-      totalTax: Math.round(totalTax),
-      tax5: Math.round(tax5),
-      tax18: Math.round(tax18),
-      hasMixedRates: tax5 > 0 && tax18 > 0
-    };
+    if (taxRate === gstSlabs.low.rate) {
+      tax5 += itemTax;
+      taxableValueFor5Percent += itemTotal;
+    } else {
+      tax18 += itemTax;
+      taxableValueFor18Percent += itemTotal;
+    }
+  });
+
+  // Allocate delivery charge proportionally to taxable values
+  const totalTaxableValue = taxableValueFor5Percent + taxableValueFor18Percent;
+  
+  if (totalTaxableValue > 0 && deliveryCharge > 0) {
+    // Calculate proportion of delivery charge for each tax slab
+    const deliveryFor5Percent = deliveryCharge * (taxableValueFor5Percent / totalTaxableValue);
+    const deliveryFor18Percent = deliveryCharge * (taxableValueFor18Percent / totalTaxableValue);
+    
+    // Add tax on delivery charge (same rate as the items in that slab)
+    tax5 += deliveryFor5Percent * gstSlabs.low.rate;
+    tax18 += deliveryFor18Percent * gstSlabs.high.rate;
+    
+    totalTax = tax5 + tax18;
   }
 
-  // Generate order summary for payment
-  generateOrderSummary(order) {
-    const subtotal = order.items.reduce((sum, item) => 
-      sum + (item.price * item.quantity), 0
-    );
+  return {
+    totalTax: Math.round(totalTax),
+    tax5: Math.round(tax5),
+    tax18: Math.round(tax18),
+    taxableValueFor5Percent: Math.round(taxableValueFor5Percent),
+    taxableValueFor18Percent: Math.round(taxableValueFor18Percent),
+    hasMixedRates: tax5 > 0 && tax18 > 0
+  };
+}
 
-    const taxDetails = this.calculateGST(order.items);
-    const total = subtotal + taxDetails.totalTax + (order.deliveryCharge || 0);
+// Updated generateOrderSummary function
+generateOrderSummary(order) {
+  const subtotal = order.items.reduce((sum, item) => 
+    sum + (item.price * item.quantity), 0
+  );
 
-    return {
-      subtotal: Math.round(subtotal),
-      taxAmount: taxDetails.totalTax,
-      taxDetails,
-      deliveryCharge: order.deliveryCharge || 0,
-      total: Math.round(total),
-      currency: 'INR'
-    };
-  }
+  const deliveryCharge = order.deliveryCharge || 0;
+  
+  // Pass delivery charge to GST calculation
+  const taxDetails = this.calculateGST(order.items, deliveryCharge);
+  
+  const total = subtotal + taxDetails.totalTax + deliveryCharge;
+
+  return {
+    subtotal: Math.round(subtotal),
+    taxAmount: taxDetails.totalTax,
+    taxDetails,
+    deliveryCharge: Math.round(deliveryCharge),
+    total: Math.round(total),
+    currency: 'INR',
+    breakdown: {
+      items: subtotal,
+      gst5: taxDetails.tax5,
+      gst18: taxDetails.tax18,
+      delivery: deliveryCharge,
+      total: total
+    }
+  };
+}
 
   // Validate payment data
   validatePaymentData(paymentData) {
@@ -275,6 +313,7 @@ async createRazorpayOrder(orderData) {
 
 
 module.exports = PaymentHelper;
+
 
 
 
