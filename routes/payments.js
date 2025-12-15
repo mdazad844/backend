@@ -90,70 +90,6 @@ router.post('/create-order', async (req, res) => {
   }
 });
 
-// ✅ PAYMENT VERIFICATION (Updated with GST info)
-router.post('/verify-payment', async (req, res) => {
-  try {
-    console.log('🎯 Payment verification started');
-    
-    const { 
-      razorpay_payment_id, 
-      razorpay_order_id, 
-      razorpay_signature 
-    } = req.body;
-
-    // 1. Verify signature
-    const body = razorpay_order_id + "|" + razorpay_payment_id;
-    const expectedSignature = crypto
-      .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
-      .update(body)
-      .digest('hex');
-
-    if (expectedSignature !== razorpay_signature) {
-      console.log('❌ Signature mismatch');
-      return res.status(400).json({
-        success: false,
-        error: 'Invalid payment signature'
-      });
-    }
-
-    console.log('✅ Signature verified');
-
-    // 2. Get payment and order details from Razorpay
-    const payment = await razorpay.payments.fetch(razorpay_payment_id);
-    const order = await razorpay.orders.fetch(razorpay_order_id);
-    
-    console.log('📋 Order notes (GST info):', order.notes);
-
-    if (payment.status === 'captured') {
-      console.log('✅ Payment captured successfully');
-      
-      res.json({
-        success: true,
-        message: 'Payment verified successfully',
-        orderId: razorpay_order_id,
-        paymentId: razorpay_payment_id,
-        // Include GST info from order notes
-        gstInfo: order.notes || {}
-      });
-      
-    } else {
-      console.log('❌ Payment not captured:', payment.status);
-      res.status(400).json({
-        success: false,
-        error: `Payment failed with status: ${payment.status}`
-      });
-    }
-
-  } catch (error) {
-    console.error('💥 Verification error:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Payment verification failed'
-    });
-  }
-});
-
-// ✅ NEW: Calculate order total with GST
 // ✅ UPDATED: VERIFY PAYMENT AND SAVE TO DATABASE
 router.post('/verify-payment', async (req, res) => {
   try {
@@ -338,6 +274,40 @@ router.post('/verify-payment', async (req, res) => {
   }
 });
 
+// ✅ NEW: Calculate order total with GST
+router.post('/calculate-total', (req, res) => {
+  try {
+    const { subtotal, deliveryCharge = 0 } = req.body;
+    
+    const taxableValue = Number(subtotal) + Number(deliveryCharge);
+    const gstAmount = Math.round(taxableValue * 0.05);
+    const totalAmount = taxableValue + gstAmount;
+    
+    res.json({
+      success: true,
+      breakdown: {
+        subtotal: Number(subtotal),
+        deliveryCharge: Number(deliveryCharge),
+        taxableValue: taxableValue,
+        gstAmount: gstAmount,
+        gstRate: '5%',
+        totalAmount: totalAmount,
+        amountInPaise: totalAmount * 100
+      },
+      display: {
+        summary: `Items: ₹${subtotal} + Delivery: ₹${deliveryCharge} + GST (5%): ₹${gstAmount}`,
+        total: `₹${totalAmount}`
+      }
+    });
+    
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: 'Calculation failed'
+    });
+  }
+});
+
 // Health check
 router.get('/', (req, res) => {
   res.json({ 
@@ -348,4 +318,3 @@ router.get('/', (req, res) => {
 });
 
 module.exports = router;
-
