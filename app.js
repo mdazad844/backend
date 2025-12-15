@@ -59,6 +59,7 @@ mongoose.connect(process.env.MONGODB_URI, {
 try {
   app.use('/api/payments', require('./routes/payments'));
   app.use('/api/orders', require('./routes/orders'));
+ app.use('/api/ordersdash', require('./routes/ordersdash')); 
   app.use('/api/analytics', require('./routes/analytics'));
   app.use('/api/webhooks', require('./routes/webhooks'));
   app.use('/api/shipping', require('./routes/shipping'));
@@ -160,5 +161,6 @@ app.get('/test-payment', async (req, res) => {
 
 
 module.exports = app; // For testing
+
 
 
