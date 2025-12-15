@@ -98,130 +98,6 @@ router.post('/create-order', async (req, res) => {
 });
 
 
-const express = require('express');
-const router = express.Router();
-const Order = require('../models/order');
-
-// Get orders by user email
-router.post('/user-orders', async (req, res) => {
-  try {
-    const { email } = req.body;
-    
-    if (!email) {
-      return res.status(400).json({
-        success: false,
-        error: 'Email is required'
-      });
-    }
-    
-    // Find orders by customer email
-    const orders = await Order.find({ 
-      'customer.email': email 
-    }).sort({ createdAt: -1 });
-    
-    res.json({
-      success: true,
-      orders: orders.map(order => ({
-        orderId: order.orderId,
-        razorpayOrderId: order.razorpayOrderId,
-        razorpayPaymentId: order.razorpayPaymentId,
-        customer: order.customer,
-        items: order.items,
-        pricing: order.pricing,
-        shippingAddress: order.shippingAddress,
-        status: order.status,
-        paymentStatus: order.paymentStatus,
-        paymentMethod: order.paymentMethod,
-        paidAt: order.paidAt,
-        createdAt: order.createdAt,
-        timeline: order.timeline
-      }))
-    });
-    
-  } catch (error) {
-    console.error('Error fetching user orders:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to fetch orders'
-    });
-  }
-});
-
-// Get all orders (for admin)
-router.get('/all-orders', async (req, res) => {
-  try {
-    const orders = await Order.find().sort({ createdAt: -1 });
-    
-    res.json({
-      success: true,
-      orders: orders.map(order => ({
-        orderId: order.orderId,
-        customer: {
-          name: order.customer.name,
-          email: order.customer.email,
-          phone: order.customer.phone
-        },
-        items: order.items.map(item => ({
-          name: item.name,
-          quantity: item.quantity,
-          price: item.price,
-          total: item.price * item.quantity
-        })),
-        pricing: order.pricing,
-        status: order.status,
-        paymentStatus: order.paymentStatus,
-        createdAt: order.createdAt
-      }))
-    });
-    
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: 'Failed to fetch orders'
-    });
-  }
-});
-
-
-// Get single order by ID
-router.get('/:orderId', async (req, res) => {
-  try {
-    const { orderId } = req.params;
-    
-    const order = await Order.findOne({ orderId });
-    
-    if (!order) {
-      return res.status(404).json({
-        success: false,
-        error: 'Order not found'
-      });
-    }
-    
-    res.json({
-      success: true,
-      order: {
-        orderId: order.orderId,
-        customer: order.customer,
-        items: order.items,
-        pricing: order.pricing,
-        shippingAddress: order.shippingAddress,
-        shipping: order.shipping,
-        status: order.status,
-        paymentStatus: order.paymentStatus,
-        paymentMethod: order.paymentMethod,
-        paidAt: order.paidAt,
-        timeline: order.timeline,
-        createdAt: order.createdAt
-      }
-    });
-    
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: 'Failed to fetch order'
-    });
-  }
-});
 
 
 
@@ -238,5 +114,6 @@ router.get('/', (req, res) => {
 });
 
 module.exports = router;
+
 
 
