@@ -179,7 +179,7 @@ paymentSchema.set('toJSON', {
 });
 
 module.exports = mongoose.model('Payment', paymentSchema);
-/payments.jsconst express = require('express');
+
 const router = express.Router();
 const Razorpay = require('razorpay');
 const crypto = require('crypto');
@@ -565,6 +565,7 @@ async createRazorpayOrder(orderData) {
 
 
 module.exports = PaymentHelper;
+
 
 
 
