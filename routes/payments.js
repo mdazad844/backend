@@ -255,7 +255,7 @@ try {
     console.log('📧 Attempting to send receipt to:', customerEmail);
     
     // Use environment variable for backend URL or localhost
-    const backendUrl = process.env.BACKEND_URL || 'http://localhost:5000';
+const backendUrl = 'https://backend-production-c281a.up.railway.app';
     
     const emailResponse = await axios.post(
       `${backendUrl}/api/emails/send-receipt`,
@@ -367,5 +367,6 @@ router.get('/', (req, res) => {
 });
 
 module.exports = router;
+
 
 
