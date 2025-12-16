@@ -263,6 +263,7 @@ router.post('/verify-payment', async (req, res) => {
               name: customerName,
               amount: grandTotal,
               orderId: orderId
+              items: orderData?.items || []
             },
             {
               headers: { 'Content-Type': 'application/json' },
@@ -365,3 +366,4 @@ router.get('/', (req, res) => {
 });
 
 module.exports = router;
+
