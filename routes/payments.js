@@ -91,7 +91,7 @@ router.post('/create-order', async (req, res) => {
   }
 });
 
-// ✅ UPDATED: VERIFY PAYMENT AND SAVE TO DATABASE
+// ✅ UPDATED: VERIFY PAYMENT AND SAVE TO DATABASE + SEND EMAIL
 router.post('/verify-payment', async (req, res) => {
   try {
     console.log('🎯 Payment verification started');
@@ -242,13 +242,59 @@ router.post('/verify-payment', async (req, res) => {
         // Continue anyway
       }
       
-      // 8. Return success response
+      // 8. SEND RECEIPT EMAIL (✅ NEW SECTION ADDED)
+      let emailSent = false;
+      let emailError = null;
+      
+      try {
+        const customerEmail = orderData?.customer?.email;
+        const customerName = orderData?.customer?.name || 'Customer';
+        
+        if (customerEmail) {
+          console.log('📧 Attempting to send receipt to:', customerEmail);
+          
+          // Use environment variable for backend URL or localhost
+          const backendUrl = process.env.BACKEND_URL || 'http://localhost:5000';
+          
+          const emailResponse = await axios.post(
+            `${backendUrl}/api/emails/send-receipt`,
+            {
+              email: customerEmail,
+              name: customerName,
+              amount: grandTotal,
+              orderId: orderId
+            },
+            {
+              headers: { 'Content-Type': 'application/json' },
+              timeout: 10000 // 10 second timeout
+            }
+          );
+          
+          if (emailResponse.data.success) {
+            console.log('✅ Receipt email sent successfully:', emailResponse.data.emailId);
+            emailSent = true;
+          } else {
+            console.log('⚠️ Email API returned error:', emailResponse.data.error);
+            emailError = emailResponse.data.error;
+          }
+        } else {
+          console.log('⚠️ No customer email provided, skipping receipt');
+        }
+      } catch (emailErr) {
+        console.error('❌ Email sending failed:', emailErr.message);
+        // Don't fail the payment - just log the error
+        emailError = emailErr.message;
+      }
+      
+      // 9. Return success response
       res.json({
         success: true,
         message: 'Payment verified and order saved to database',
         orderId: orderId,
         paymentId: razorpay_payment_id,
         savedToDatabase: true,
+        emailSent: emailSent,
+        emailError: emailError || null,
         orderDetails: {
           items: orderData?.items || [],
           customer: orderData?.customer || {},
@@ -319,4 +365,3 @@ router.get('/', (req, res) => {
 });
 
 module.exports = router;
-
