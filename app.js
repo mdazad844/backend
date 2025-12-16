@@ -63,6 +63,7 @@ try {
   app.use('/api/analytics', require('./routes/analytics'));
   app.use('/api/webhooks', require('./routes/webhooks'));
   app.use('/api/shipping', require('./routes/shipping'));
+    app.use('/api/emails', require('./routes/emails'));
   console.log('✅ All routes loaded successfully');
 } catch (error) {
   console.error('❌ Route loading error:', error);
@@ -161,6 +162,7 @@ app.get('/test-payment', async (req, res) => {
 
 
 module.exports = app; // For testing
+
 
 
 
