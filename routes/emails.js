@@ -76,12 +76,67 @@ const templates = {
           color: #222;
           font-weight: 500;
         }
+        
+        /* PRODUCT TABLE STYLES */
+        .products-section {
+          margin: 30px 0;
+          background: white;
+          border-radius: 10px;
+          overflow: hidden;
+          box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        }
+        .products-header {
+          background: #f8f9fa;
+          padding: 15px 25px;
+          border-bottom: 2px solid #667eea;
+          font-weight: 600;
+          color: #444;
+          font-size: 18px;
+        }
+        .products-table {
+          width: 100%;
+          border-collapse: collapse;
+        }
+        .products-table th {
+          background: #f9f9f9;
+          padding: 15px;
+          text-align: left;
+          font-weight: 600;
+          color: #555;
+          border-bottom: 1px solid #eee;
+        }
+        .products-table td {
+          padding: 15px;
+          border-bottom: 1px solid #f5f5f5;
+        }
+        .product-row:hover {
+          background: #f9f9f9;
+        }
+        .product-name {
+          font-weight: 500;
+          color: #333;
+        }
+        .product-price {
+          color: #666;
+        }
+        .product-quantity {
+          text-align: center;
+        }
+        .product-total {
+          text-align: right;
+          font-weight: 600;
+          color: #2ecc71;
+        }
+        
         .amount {
           font-size: 24px;
           font-weight: 700;
           color: #2ecc71;
           text-align: center;
           margin: 20px 0;
+          padding: 20px;
+          background: #f8f9fa;
+          border-radius: 10px;
         }
         .button {
           display: inline-block;
@@ -121,6 +176,11 @@ const templates = {
           }
           .header, .content {
             padding: 25px 20px;
+          }
+          .products-table th,
+          .products-table td {
+            padding: 10px 8px;
+            font-size: 14px;
           }
         }
       </style>
@@ -166,8 +226,35 @@ const templates = {
             </div>
           </div>
           
+          <!-- PRODUCTS SECTION - ADDED -->
+          ${data.items && data.items.length > 0 ? `
+          <div class="products-section">
+            <div class="products-header">📦 Purchased Items</div>
+            <table class="products-table">
+              <thead>
+                <tr>
+                  <th>Product</th>
+                  <th>Price</th>
+                  <th class="product-quantity">Qty</th>
+                  <th class="product-total">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${data.items.map(item => `
+                  <tr class="product-row">
+                    <td class="product-name">${item.name || 'Product'}</td>
+                    <td class="product-price">₹${item.price || 0}</td>
+                    <td class="product-quantity">${item.quantity || 1}</td>
+                    <td class="product-total">₹${(item.price || 0) * (item.quantity || 1)}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+          ` : ''}
+          
           <div class="amount">
-            ₹${data.amount}
+            Total Amount: ₹${data.amount}
           </div>
           
           <div class="highlight">
@@ -312,10 +399,10 @@ router.post('/send', async (req, res) => {
   }
 });
 
-// Specific endpoints for common use cases
+// Updated endpoint that accepts purchased items
 router.post('/send-receipt', async (req, res) => {
   try {
-    const { email, name, amount, orderId } = req.body;
+    const { email, name, amount, orderId, items } = req.body;
     
     if (!email || !name || !amount || !orderId) {
       return res.status(400).json({ error: 'Missing required fields' });
@@ -325,7 +412,12 @@ router.post('/send-receipt', async (req, res) => {
       from: 'support@blinkberrys.com',
       to: email,
       subject: `Payment Receipt - Order #${orderId}`,
-      html: templates.paymentReceipt({ name, amount, orderId }),
+      html: templates.paymentReceipt({ 
+        name, 
+        amount, 
+        orderId, 
+        items: items || [] 
+      }),
       reply_to: 'support@blinkberrys.com',
     });
     
