@@ -389,6 +389,16 @@ router.post('/submit', async (req, res) => {
       }
     });
 
+
+    // EMERGENCY FIX: Generate ticketId if missing
+if (!contact.ticketId) {
+  const date = new Date();
+  const dateStr = date.toISOString().slice(2, 10).replace(/-/g, '');
+  const randomStr = Math.random().toString(36).substring(2, 8).toUpperCase();
+  contact.ticketId = `CT-${dateStr}-${randomStr}`;
+  console.log(`🚨 EMERGENCY: Manually set Ticket ID: ${contact.ticketId}`);
+}
+
     // Save to database
     await contact.save();
     console.log('✅ Contact saved to MongoDB:', contact.ticketId);
