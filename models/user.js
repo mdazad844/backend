@@ -1,4 +1,6 @@
+// backend/models/User.js
 const mongoose = require('mongoose');
+const bcrypt = require('bcryptjs');
 
 const userSchema = new mongoose.Schema({
   // Authentication
@@ -10,15 +12,14 @@ const userSchema = new mongoose.Schema({
     trim: true
   },
   password: { 
-    type: String 
-  }, // Hashed password (if using local auth)
+    type: String, 
+    required: true 
+  },
   
   // Profile Information
-  profile: {
-    name: { type: String, required: true },
-    phone: { type: String },
-    avatar: { type: String }
-  },
+  name: { type: String, required: true },
+  phone: { type: String },
+  avatar: { type: String, default: '' },
   
   // Addresses
   addresses: [{
@@ -36,36 +37,11 @@ const userSchema = new mongoose.Schema({
     isDefault: { type: Boolean, default: false }
   }],
   
-  // Preferences
-  preferences: {
-    newsletter: { type: Boolean, default: true },
-    smsNotifications: { type: Boolean, default: true },
-    emailNotifications: { type: Boolean, default: true }
-  },
-  
-  // Order History (references)
-  orders: [{ 
-    type: mongoose.Schema.Types.ObjectId, 
-    ref: 'Order' 
-  }],
-  
-  // Wishlist
-  wishlist: [{ 
-    type: mongoose.Schema.Types.ObjectId, 
-    ref: 'Product' 
-  }],
-  
-  // Cart (stored temporarily)
-  cart: [{
-    productId: { type: String, required: true },
-    name: { type: String, required: true },
-    price: { type: Number, required: true },
-    quantity: { type: Number, default: 1 },
-    image: { type: String },
-    size: { type: String },
-    color: { type: String },
-    addedAt: { type: Date, default: Date.now }
-  }],
+  // Password Recovery
+  resetPasswordToken: { type: String },
+  resetPasswordExpires: { type: Date },
+  emailVerified: { type: Boolean, default: false },
+  verificationToken: { type: String },
   
   // Account Status
   status: { 
@@ -74,18 +50,13 @@ const userSchema = new mongoose.Schema({
     default: 'active' 
   },
   
-  // Authentication
-  auth: {
-    provider: { 
-      type: String, 
-      enum: ['local', 'google', 'facebook'], 
-      default: 'local' 
-    },
-    providerId: { type: String }, // For OAuth providers
-    lastLogin: { type: Date },
-    emailVerified: { type: Boolean, default: false },
-    verificationToken: { type: String }
+  // Authentication Provider
+  authProvider: { 
+    type: String, 
+    enum: ['local', 'google', 'facebook'], 
+    default: 'local' 
   },
+  providerId: { type: String },
   
   // Statistics
   statistics: {
@@ -98,38 +69,35 @@ const userSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Indexes
-userSchema.index({ email: 1 });
-userSchema.index({ 'profile.phone': 1 });
-userSchema.index({ status: 1 });
-
-// Static method to find by email
-userSchema.statics.findByEmail = function(email) {
-  return this.findOne({ email: email.toLowerCase() });
-};
-
-// Instance method to get default address
-userSchema.methods.getDefaultAddress = function() {
-  return this.addresses.find(addr => addr.isDefault) || this.addresses[0];
-};
-
-// Instance method to add address
-userSchema.methods.addAddress = function(addressData) {
-  // If this is the first address, set as default
-  if (this.addresses.length === 0) {
-    addressData.isDefault = true;
-  }
+// Hash password before saving
+userSchema.pre('save', async function(next) {
+  if (!this.isModified('password')) return next();
   
-  this.addresses.push(addressData);
-  return this.save();
+  try {
+    const salt = await bcrypt.genSalt(10);
+    this.password = await bcrypt.hash(this.password, salt);
+    next();
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Compare password method
+userSchema.methods.comparePassword = async function(candidatePassword) {
+  try {
+    return await bcrypt.compare(candidatePassword, this.password);
+  } catch (error) {
+    throw error;
+  }
 };
 
-// Instance method to update order statistics
-userSchema.methods.updateOrderStats = function(orderAmount) {
-  this.statistics.totalOrders += 1;
-  this.statistics.totalSpent += orderAmount;
-  this.statistics.lastOrderDate = new Date();
-  return this.save();
+// Remove password when converting to JSON
+userSchema.methods.toJSON = function() {
+  const obj = this.toObject();
+  delete obj.password;
+  delete obj.resetPasswordToken;
+  delete obj.resetPasswordExpires;
+  return obj;
 };
 
 module.exports = mongoose.model('User', userSchema);
