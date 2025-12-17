@@ -97,27 +97,43 @@ contactSchema.index({ priority: 1 });
 contactSchema.index({ subject: 1 });
 contactSchema.index({ 'metadata.source': 1 });
 
-// Pre-save middleware to generate ticket ID
+// ========== SINGLE, CORRECT PRE-SAVE HOOK ==========
 contactSchema.pre('save', function(next) {
-  if (!this.ticketId) {
+  console.log('🔍 Pre-save hook triggered');
+  console.log('🔍 isNew?', this.isNew);
+  console.log('🔍 current ticketId:', this.ticketId);
+  
+  // Only generate ticketId for NEW documents
+  if (this.isNew && !this.ticketId) {
     const date = new Date();
-    const dateStr = date.toISOString().slice(2, 10).replace(/-/g, '');
-    const randomStr = Math.random().toString(36).substring(2, 8).toUpperCase();
+    const dateStr = date.toISOString().slice(2, 10).replace(/-/g, ''); // YYMMDD
+    const randomStr = Math.random().toString(36).substring(2, 8).toUpperCase(); // 6 random chars
     this.ticketId = `CT-${dateStr}-${randomStr}`;
+    console.log(`✅ Generated Ticket ID: ${this.ticketId}`);
   }
   
-  // Auto-assign priority based on subject
-  if (this.subject === 'bulk-order' || this.subject === 'business') {
-    this.priority = 'high';
-  }
-  
-  // Auto-add tags
-  if (this.subject === 'bulk-order' && this.estimatedQuantity && this.estimatedQuantity >= 100) {
-    this.tags = [...(this.tags || []), 'bulk-100-plus'];
-  }
-  
-  if (this.orderType === 'business' || this.orderType === 'wholesale') {
-    this.tags = [...(this.tags || []), 'b2b'];
+  // Auto-assign priority based on subject (only for new docs)
+  if (this.isNew) {
+    if (this.subject === 'bulk-order' || this.subject === 'business') {
+      this.priority = 'high';
+      console.log(`🔔 Set priority to HIGH for subject: ${this.subject}`);
+    }
+    
+    // Auto-add tags for new documents
+    const tags = [];
+    
+    if (this.subject === 'bulk-order' && this.estimatedQuantity && this.estimatedQuantity >= 100) {
+      tags.push('bulk-100-plus');
+    }
+    
+    if (this.orderType === 'business' || this.orderType === 'wholesale') {
+      tags.push('b2b');
+    }
+    
+    if (tags.length > 0) {
+      this.tags = [...(this.tags || []), ...tags];
+      console.log(`🏷️ Added tags: ${tags.join(', ')}`);
+    }
   }
   
   next();
@@ -198,21 +214,5 @@ contactSchema.methods.addInternalNote = function(note, userId) {
   
   return this.save();
 };
-
-// In backend/models/Contact.js
-// Add this block BEFORE the final "module.exports = ..." line.
-
-contactSchema.pre('save', function(next) {
-  // Only generate a ticketId if this is a new document (not an update)
-  if (this.isNew && !this.ticketId) {
-    const date = new Date();
-    const dateStr = date.toISOString().slice(2, 10).replace(/-/g, ''); // Gets YYMMDD
-    const randomStr = Math.random().toString(36).substring(2, 8).toUpperCase(); // Gets 6 random chars
-    this.ticketId = `CT-${dateStr}-${randomStr}`;
-    console.log(`✅ Generated Ticket ID: ${this.ticketId}`);
-  }
-  next();
-});
-
 
 module.exports = mongoose.model('Contact', contactSchema);
