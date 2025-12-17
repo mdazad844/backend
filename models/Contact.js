@@ -199,4 +199,20 @@ contactSchema.methods.addInternalNote = function(note, userId) {
   return this.save();
 };
 
+// In backend/models/Contact.js
+// Add this block BEFORE the final "module.exports = ..." line.
+
+contactSchema.pre('save', function(next) {
+  // Only generate a ticketId if this is a new document (not an update)
+  if (this.isNew && !this.ticketId) {
+    const date = new Date();
+    const dateStr = date.toISOString().slice(2, 10).replace(/-/g, ''); // Gets YYMMDD
+    const randomStr = Math.random().toString(36).substring(2, 8).toUpperCase(); // Gets 6 random chars
+    this.ticketId = `CT-${dateStr}-${randomStr}`;
+    console.log(`✅ Generated Ticket ID: ${this.ticketId}`);
+  }
+  next();
+});
+
+
 module.exports = mongoose.model('Contact', contactSchema);
