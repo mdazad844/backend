@@ -20,6 +20,7 @@
     "nodemailer": "^6.9.4",
     "razorpay": "^2.8.6",
     "resend": "^3.1.0" 
+    "express-rate-limit": "^7.1.5"
   },
   "devDependencies": {
     "nodemon": "^3.0.1"
@@ -33,4 +34,5 @@
   "author": "MyBrand",
   "license": "MIT"
 }
+
 
