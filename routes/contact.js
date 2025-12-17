@@ -8,16 +8,7 @@ const rateLimit = require('express-rate-limit');
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 // Rate limiting to prevent spam
-const contactLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 5, // 5 requests per windowMs
-  message: { error: 'Too many contact attempts, please try again later.' },
-  standardHeaders: true,
-  legacyHeaders: false,
-});
 
-// Apply rate limiting to contact routes
-router.use(contactLimiter);
 
 // Generate subject text for display
 const getSubjectText = (code) => {
