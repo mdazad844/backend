@@ -161,31 +161,10 @@ app.get('/test-payment', async (req, res) => {
 });
 
 
-// In your backend (server.js or app.js)
-// Add this middleware
-const adminAuth = (req, res, next) => {
-    const adminToken = req.headers['admin-token'];
-    
-    // Your secret admin token (store in environment variable)
-    const ADMIN_SECRET = process.env.ADMIN_SECRET || 'your-secure-admin-token-here';
-    
-    if (adminToken === ADMIN_SECRET) {
-        next(); // Allow access
-    } else {
-        res.status(401).json({ 
-            success: false, 
-            message: 'Unauthorized: Invalid admin token' 
-        });
-    }
-};
-
-// Protect your orders route
-app.get('/api/ordersdash/all-orders', adminAuth, async (req, res) => {
-    // Your existing orders logic
-});
 
 
 module.exports = app; // For testing
+
 
 
 
