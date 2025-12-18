@@ -1,5 +1,69 @@
 const express = require('express');
 const cors = require('cors');
+
+// Add at the top
+console.log('🚀 SERVER STARTING - DEBUG MODE');
+
+// Add this function
+async function debugAdminSetup() {
+  console.log('🔧 DEBUG: Checking admin setup...');
+  
+  try {
+    // Check if Admin model exists
+    console.log('1. Checking if Admin model is loaded...');
+    const Admin = require('./models/Admin');
+    console.log('   ✅ Admin model loaded');
+    
+    // Check MongoDB connection
+    console.log('2. Checking MongoDB connection...');
+    console.log('   MONGODB_URI exists:', !!process.env.MONGODB_URI);
+    
+    // Try to connect and count
+    const mongoose = require('mongoose');
+    await mongoose.connect(process.env.MONGODB_URI);
+    const db = mongoose.connection.db;
+    
+    // Check collections
+    const collections = await db.listCollections().toArray();
+    console.log('3. Collections found:', collections.map(c => c.name));
+    
+    // Check admins
+    const admins = db.collection('admins');
+    const adminCount = await admins.countDocuments();
+    console.log('4. Admin count:', adminCount);
+    
+    if (adminCount === 0) {
+      console.log('⚠️ NO ADMINS FOUND! Creating one...');
+      
+      // Create admin
+      const bcrypt = require('bcryptjs');
+      const passwordHash = await bcrypt.hash('FixThisNow123', 10);
+      
+      await admins.insertOne({
+        username: 'admin',
+        email: 'admin@mybrand.com',
+        passwordHash: passwordHash,
+        role: 'superadmin',
+        createdAt: new Date(),
+        isActive: true
+      });
+      
+      console.log('✅ EMERGENCY ADMIN CREATED!');
+      console.log('   Username: admin');
+      console.log('   Password: FixThisNow123');
+    }
+    
+    await mongoose.disconnect();
+    
+  } catch (error) {
+    console.error('❌ DEBUG ERROR:', error.message);
+    console.error(error.stack);
+  }
+}
+
+// Call it after server starts
+debugAdminSetup();
+
 const mongoose = require('mongoose');
 
 const app = express();
@@ -165,6 +229,7 @@ app.get('/test-payment', async (req, res) => {
 
 
 module.exports = app; // For testing
+
 
 
 
