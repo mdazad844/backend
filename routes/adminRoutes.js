@@ -291,4 +291,90 @@ router.post('/validate', verifyAdmin, (req, res) => {
     });
 });
 
+
+// ... [ALL YOUR EXISTING CODE ABOVE] ...
+
+// ==================== ADD EMERGENCY CODE HERE ====================
+// 🔥 ADD THIS RIGHT BEFORE module.exports = router;
+
+// ========== TEMPORARY EMERGENCY PASSWORD RESET ==========
+// Use ONCE then DELETE IMMEDIATELY after use
+router.post('/emergency-reset', async (req, res) => {
+    console.log('🔐 EMERGENCY PASSWORD RESET ATTEMPT');
+    
+    try {
+        // 1. SECRET CHECK - CHANGE THIS SECRET!
+        const SECRET_KEY = 'blinkAzaDberrys987!@#'; // ⚠️ CHANGE THIS to your own secret!
+        if (req.headers['x-emergency-key'] !== SECRET_KEY) {
+            console.log('❌ Invalid reset secret');
+            return res.status(401).json({ 
+                success: false, 
+                message: 'Unauthorized' 
+            });
+        }
+        
+        // 2. Connect to MongoDB
+        const mongoose = require('mongoose');
+        const bcrypt = require('bcryptjs');
+        
+        // Connect if not connected
+        if (mongoose.connection.readyState !== 1) {
+            await mongoose.connect(process.env.MONGODB_URI);
+        }
+        
+        const db = mongoose.connection.db;
+        
+        // 3. Generate NEW secure password
+        const crypto = require('crypto');
+        const newPassword = crypto.randomBytes(10).toString('hex') + '!Aa1'; // Example: a3f8b91c7e!Aa1
+        
+        // 4. Hash and update
+        const hash = await bcrypt.hash(newPassword, 12);
+        
+        const result = await db.collection('admins').updateOne(
+            { username: 'admin' }, // Assumes your username is 'admin'
+            { $set: { 
+                passwordHash: hash,
+                loginAttempts: 0, // Reset lockouts
+                lockUntil: null
+            }}
+        );
+        
+        if (result.modifiedCount === 0) {
+            // Try with username 'admin@mybrand.com' or check what username exists
+            return res.status(404).json({ 
+                success: false, 
+                message: 'Admin account not found with username "admin"' 
+            });
+        }
+        
+        // 5. Return success (password shown in logs)
+        console.log('✅ Password reset for admin');
+        console.log('========================================');
+        console.log('⚠️  EMERGENCY PASSWORD RESET COMPLETE');
+        console.log('⚠️  NEW PASSWORD:', newPassword);
+        console.log('⚠️  LOGIN WITH: admin /', newPassword);
+        console.log('⚠️  SAVE THIS - It will not be shown again');
+        console.log('========================================');
+        
+        res.json({
+            success: true,
+            message: 'Password reset successful. Check SERVER LOGS for new password.',
+            timestamp: new Date().toISOString()
+        });
+        
+    } catch (error) {
+        console.error('❌ Reset error:', error.message);
+        res.status(500).json({ 
+            success: false, 
+            message: 'Server error during reset',
+            error: process.env.NODE_ENV === 'development' ? error.message : undefined
+        });
+    }
+});
+
+// ========== END OF EMERGENCY CODE ==========
+
+module.exports = router;
+
 module.exports = router;
