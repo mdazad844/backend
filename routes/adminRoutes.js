@@ -25,6 +25,7 @@ router.get('/', (req, res) => {
 });
 
 // Admin login
+// In routes/adminRoutes.js, update the login function:
 router.post('/login', async (req, res) => {
     try {
         const { username, password } = req.body;
@@ -37,21 +38,23 @@ router.post('/login', async (req, res) => {
             });
         }
 
+        // 🔥 IMPORTANT: Get fresh mongoose connection
+        const mongoose = require('mongoose');
+        
+        // Check if already connected
+        if (mongoose.connection.readyState !== 1) {
+            console.log('⚠️ MongoDB not connected, reconnecting...');
+            await mongoose.connect(process.env.MONGODB_URI);
+        }
+
         // Find admin
+        const Admin = require('../models/Admin');
         const admin = await Admin.findOne({ username: username.toLowerCase() });
         
         if (!admin) {
             return res.status(401).json({ 
                 success: false, 
                 message: 'Invalid credentials' 
-            });
-        }
-
-        // Check if account is locked
-        if (admin.isLocked()) {
-            return res.status(423).json({ 
-                success: false, 
-                message: 'Account is locked. Try again later.' 
             });
         }
 
@@ -72,13 +75,14 @@ router.post('/login', async (req, res) => {
         await admin.resetLoginAttempts();
 
         // Generate JWT token
+        const jwt = require('jsonwebtoken');
         const token = jwt.sign(
             { 
                 adminId: admin._id, 
                 username: admin.username,
                 role: admin.role
             },
-            process.env.JWT_SECRET || 'your-jwt-secret',
+            process.env.JWT_SECRET || 'your-jwt-secret-fallback',
             { expiresIn: '8h' }
         );
 
@@ -96,14 +100,16 @@ router.post('/login', async (req, res) => {
         });
 
     } catch (error) {
-        console.error('Admin login error:', error);
+        console.error('Admin login error:', error.message);
+        console.error('Full error:', error);
+        
         res.status(500).json({ 
             success: false, 
-            message: 'Internal server error' 
+            message: 'Internal server error',
+            error: process.env.NODE_ENV === 'production' ? undefined : error.message
         });
     }
 });
-
 // Admin logout (optional - client side token removal)
 router.post('/logout', verifyAdmin, (req, res) => {
     res.json({
