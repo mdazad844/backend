@@ -5,6 +5,25 @@ const jwt = require('jsonwebtoken');
 const Admin = require('../models/Admin');
 const { verifyAdmin, requireRole } = require('../middleware/authAdmin');
 
+// GET /api/admin - Root endpoint
+router.get('/', (req, res) => {
+  res.json({
+    success: true,
+    message: 'MyBrand Admin API',
+    version: '1.0.0',
+    endpoints: {
+      login: 'POST /api/admin/login',
+      profile: 'GET /api/admin/profile',
+      validate: 'POST /api/admin/validate',
+      logout: 'POST /api/admin/logout',
+      changePassword: 'POST /api/admin/change-password',
+      createAdmin: 'POST /api/admin/create (superadmin only)'
+    },
+    timestamp: new Date().toISOString(),
+    docs: 'https://backend-production-c281a.up.railway.app/api/admin'
+  });
+});
+
 // Admin login
 router.post('/login', async (req, res) => {
     try {
